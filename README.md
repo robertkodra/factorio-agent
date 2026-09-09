@@ -4,12 +4,13 @@ A local, tick-driven controller for Factorio **2.0.77**, tested on macOS with St
 
 Controller **0.2.0** uses a fixed `/codex-agent` JSON interface over persistent RCON. An optional [MCP stdio facade](MCP.md) exposes its 13 fixed operations with validated schemas (Python 3.10+ and separate dependencies). Base gameplay is enabled, with Space Age, Quality, and Elevated Rails disabled. The control-only mod changes no prototypes or recipes.
 
-This is an experimental **tool-assisted vanilla-mechanics benchmark**. It has demonstrated conveyors, electricity, and red/green science production. It has not completed a fresh run under the current no-console-Lua policy, green-consuming research, robotics, or a rocket launch. No human speedrun eligibility or record is claimed.
+This is an experimental **tool-assisted vanilla-mechanics benchmark**. It has demonstrated conveyors, electricity, and red/green science production historically. A [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) now passes under the current no-console-Lua policy. Fresh red/green production, green-consuming research, robotics, and a rocket launch remain pending. No human speedrun eligibility or record is claimed.
 
 ## Start here
 
 - [Setup and continuation](HANDOFF.md)
 - [Connect an agent through MCP](MCP.md)
+- [Live responsiveness measurements](knowledge/responsiveness-001.md)
 - [No-cheats policy](POLICY.md)
 - [Progression and MCP roadmap](ROADMAP.md)
 - [Knowledge base](knowledge/README.md) and [dry-run results](knowledge/dry-run-001.md)

@@ -2,6 +2,12 @@
 
 Start with the [historical dry-run report](dry-run-001.md), then the [next-run plan](next-run.md). The report preserves failed batches, corrected milestones, and validation limits. Original saves and detailed run traces are privately archived; this public folder contains reviewed summaries only.
 
+The subsequent [live responsiveness test](responsiveness-001.md) started a fresh
+map under the current policy, completed the 29-action conveyor opening, and
+measured MCP latency, cancellation, and reconnection with the Steam client
+connected. It also reduced large-batch validation overhead. It does not establish
+red/green production on a fresh run or later science capability.
+
 The dry run continued a conveyor test and produced 114 red packs and 20 green packs, completing Automation and Logistics. It did not complete green-consuming research. Its 31:26 game / 32:25 wall timing includes planning, recovery, and debugging; it is not a fresh or competitive baseline.
 
 ## Verified early-game lessons

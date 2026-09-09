@@ -8,14 +8,36 @@ import json
 from pathlib import Path
 
 import anyio
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, ValidationError, validators
 from mcp import MCPError
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import INVALID_PARAMS, CallToolResult, ListToolsResult, TextContent, Tool, ToolAnnotations
 
 from client.agent import Agent, AgentError, AgentRejected
-from client.tool_schemas import READ_ONLY, TOOLS
+from client.tool_schemas import ACTIONS, READ_ONLY, TOOLS
+
+
+ACTION_BY_TYPE = {schema["properties"]["type"]["const"]: schema for schema in ACTIONS}
+assert len(ACTION_BY_TYPE) == len(ACTIONS)
+assert all("type" in schema["required"] for schema in ACTIONS)
+
+
+def action_one_of(validator, choices, instance, schema):
+    # The action alternatives have distinct required type constants, so at most
+    # one can match. Validate that complete branch instead of testing 12 branches
+    # for every action. Other oneOf schemas keep standard JSON Schema semantics.
+    if choices is not ACTIONS:
+        yield from Draft202012Validator.VALIDATORS["oneOf"](validator, choices, instance, schema)
+        return
+    kind = instance.get("type") if isinstance(instance, dict) else None
+    if not isinstance(kind, str) or kind not in ACTION_BY_TYPE:
+        yield ValidationError("Unknown or missing action type")
+        return
+    yield from validator.descend(instance, ACTION_BY_TYPE[kind])
+
+
+RequestValidator = validators.extend(Draft202012Validator, {"oneOf": action_one_of})
 
 
 def result(payload, error=False):
@@ -69,7 +91,7 @@ class Bridge:
 
 
 def create_server(agent_factory=Agent):
-    validators = {name: Draft202012Validator(schema) for name, (schema, _) in TOOLS.items()}
+    request_validators = {name: RequestValidator(schema) for name, (schema, _) in TOOLS.items()}
 
     @asynccontextmanager
     async def lifespan(server):
@@ -99,7 +121,7 @@ def create_server(agent_factory=Agent):
             return result(dict(error="invalid_arguments", message="Arguments must be finite JSON values."), True)
         if len(encoded.encode("utf-8")) > 131072:
             return result(dict(error="invalid_arguments", message="Request exceeds controller byte limit."), True)
-        violation = next(validators[params.name].iter_errors(arguments), None)
+        violation = next(request_validators[params.name].iter_errors(arguments), None)
         if violation is not None:
             # Report where validation failed without echoing arbitrary input.
             return result(dict(error="invalid_arguments", path=list(violation.absolute_path),

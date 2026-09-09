@@ -1,5 +1,6 @@
 """MCP contracts and real stdio/RCON fault recovery; no Factorio needed."""
 import asyncio
+import copy
 import importlib.util
 import json
 from pathlib import Path
@@ -20,7 +21,7 @@ if HAS_MCP:
     from jsonschema import Draft202012Validator
     from mcp import Client, MCPError
     from mcp.client.stdio import StdioServerParameters
-    from client.mcp_server import Bridge, create_server
+    from client.mcp_server import Bridge, RequestValidator, create_server
 
 
 class RconFixture:
@@ -102,6 +103,40 @@ class RconFixture:
 
 @unittest.skipUnless(HAS_MCP, "Optional MCP tests: install requirements-mcp.txt with Python 3.10+")
 class McpTests(unittest.IsolatedAsyncioTestCase):
+    def test_optimized_validation_matches_advertised_schema(self):
+        schema = TOOLS['submit'][0]
+        reference, optimized = Draft202012Validator(schema), RequestValidator(schema)
+        # Exercise every discriminator, field, required key, bound, and unknown
+        # field with JSON values; compare acceptance to the published oneOf.
+        values = [None, True, False, 0, -1, 1, 0.1, 216000, 216001, 1000001,
+                  'coal', 'north', 'fuel', '', [], {}, ['walk']]
+        for branch in ACTIONS:
+            fields = branch['properties']
+            action = {}
+            for key, field in fields.items():
+                if key == 'type':
+                    action[key] = field['const']
+                elif 'enum' in field:
+                    action[key] = field['enum'][0]
+                elif field.get('type') == 'string':
+                    action[key] = 'coal'
+                else:
+                    action[key] = max(1, field.get('minimum', 1))
+            candidates = [action]
+            for key in fields:
+                omitted = dict(action)
+                del omitted[key]
+                candidates.append(omitted)
+                candidates.extend(dict(action, **{key: value}) for value in values)
+            candidates.extend([dict(action, code='return 1'), {}, [], None, True])
+            for candidate in candidates:
+                payload = dict(id='validation', actions=[candidate])
+                self.assertEqual(reference.is_valid(payload), optimized.is_valid(payload), payload)
+        # A structurally copied or unrelated union must use standard validation.
+        copied = copy.deepcopy(schema)
+        self.assertTrue(RequestValidator(copied).is_valid(dict(id='copy', actions=[dict(type='wait_ticks', ticks=1)])))
+        self.assertFalse(RequestValidator(dict(oneOf=[dict(type='number'), dict(type='integer')])).is_valid(1))
+
     async def test_initialize_and_discover_offline_without_credentials(self):
         factory = Mock(side_effect=AssertionError("Discovery must not connect"))
         async with Client(create_server(factory), mode="legacy") as client:

@@ -6,7 +6,7 @@ The next milestone is a clean, reproducible early-game run under `POLICY.md`, fo
 
 | ID | Goal | Completion evidence | Current evidence |
 |---|---|---|---|
-| G0 | Establish a clean baseline | Fresh map; initial state and version/seed/mod hashes; no console Lua | Pending |
+| G0 | Establish a clean baseline | Fresh map; initial state and version/seed/mod hashes; no console Lua | Recorded for the fresh responsiveness test; initialize a separate progression attempt |
 | G1 | Stable early factory | Powered red/green production, supplied labs, enough fuel/input buffers | Demonstrated in the historical dry run; repeat cleanly |
 | G2 | First green-consuming research | `military-2` completed by labs after Military, Steel processing, and green-science prerequisites | Pending; producing green packs alone does not pass |
 | G3 | Military science and research | Military-science recipe unlocked; packs produced; a technology requiring military packs completed through labs | Pending |
@@ -32,7 +32,7 @@ Start with one local MCP server around the existing controller. Multiple indepen
 | Session | Status, cancellation, explicit pause/resume, checkpoint, recovery | Fixed commands exist; portable orchestration and broader recovery tests pending |
 | Performance | Timing, throughput, starvation/fuel/power diagnostics | Existing logs; sustained throughput and bottleneck metrics pending |
 
-The optional [MCP stdio facade](MCP.md) now wraps the fixed RCON client using the official Python SDK. It exposes 13 schema-validated tools and persistent RCON transport, with no generic Lua, shell, or raw-console tool. Submission returns immediately; status/cancel operate while a tick job is active. Uncertain mutations must be reconciled by job ID instead of replayed. SDK/stdio/socket tests and an isolated historical-save compatibility check pass. This does not establish a fresh gameplay baseline. The archived upstream FactorioMCP exposed unrestricted Lua and remains unsuitable for new-policy runs.
+The optional [MCP stdio facade](MCP.md) now wraps the fixed RCON client using the official Python SDK. It exposes 13 schema-validated tools and persistent RCON transport, with no generic Lua, shell, or raw-console tool. Submission returns immediately; status/cancel operate while a tick job is active. Uncertain mutations must be reconciled by job ID instead of replayed. SDK/stdio/socket tests, an isolated historical-save compatibility check, and a [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) pass. Fresh red/green production remains pending. The archived upstream FactorioMCP exposed unrestricted Lua and remains unsuitable for new-policy runs.
 
 ## Next implementation order
 
@@ -52,7 +52,7 @@ map, enemy, pause, and reload rules; no speed target is established yet.
 
 | Capability | Current state | Evidence needed before relying on it |
 |---|---|---|
-| Agent connection and bounded actions | MCP/RCON tested; early actions exercised historically | Repeat early production on a fresh map |
+| Agent connection and bounded actions | MCP/RCON tested live; fresh conveyor sequence, cancellation, and reconnect pass | Repeat powered red/green production on a fresh map |
 | Navigation and construction | Obstacle oscillation and incomplete placement preflight remain | Tree/pole/corner recovery, unreachable-target termination, correct footprints and power coverage |
 | Economy and planning | Early material calculator and hand-authored batches | Automatic fuel/input reserves, concurrent production, bottleneck detection, recovery from starvation |
 | Version-specific knowledge | Static early solid-recipe catalog | Fixed live recipe/technology query and fluid/by-product planning |

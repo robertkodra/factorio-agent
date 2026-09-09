@@ -1,5 +1,11 @@
 # Changes
 
+## Live responsiveness and batch validation — 2026-09-09
+
+- Tested the Steam client against a fresh 2.0.77 map: the 29-action conveyor opening completed in 7,504 ticks, with 12 consecutive belt-placement ticks and normal crafting/walking overlap. Twenty moving-job cancellations and a live MCP reconnect passed.
+- Measured roughly 17 ms median observation responses. A paired comparison reduced the 512-action submission median from 88.72 ms to 38.67 ms by selecting the action schema from its required type discriminator, preserving the full advertised validation contract. All 25 tests pass, including validation-equivalence coverage.
+- Added an explicit live benchmark harness that keeps raw results under runtime and a [reviewed aggregate report](knowledge/responsiveness-001.md). The fresh test checkpoint is private; no new science or rocket milestone is claimed.
+
 ## MCP connection — 2026-09-09
 
 - Added an optional local stdio MCP server using the official Python SDK, with 13 fixed tools, strict per-action schemas, and a persistent RCON connection. Existing CLI clients retain their standard-library-only setup.

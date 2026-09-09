@@ -94,6 +94,10 @@ Optional fields should be omitted rather than set to `null`.
 - A successful `save` call acknowledges a request. Verify the checkpoint file
   and its hash separately. It does not prove a milestone or fresh-map provenance.
 
+The [live responsiveness report](knowledge/responsiveness-001.md) records a fresh
+29-action conveyor sequence, observation/cancellation timings, reconnect behavior,
+and the measured large-batch validation improvement.
+
 MCP is the connection layer, not a production planner or an unattended player.
 Navigation, sustained supply, clean-run evidence, later science, robots, and
 rocket actions retain the limitations in [ROADMAP.md](ROADMAP.md).
