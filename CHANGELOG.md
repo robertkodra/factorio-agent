@@ -1,5 +1,12 @@
 # Changes
 
+## Speedrun preparation and checkpoint rehearsal — 2026-09-09
+
+- Added a staged route and repeatable Military 2 test protocol based on the speedrun study and the pinned recipe catalog. A read-only capacity/fuel calculator exposes metal deficits before expanding science.
+- A current-policy checkpoint continuation produced 30 automatic red packs, completed Electric mining drill through labs and recovered an exhausted iron line using normal mining and placement. The full record retains one failed batch, six completed batches and twenty pause transitions; it is not a fresh speedrun.
+- Two red assemblers produced 24 packs in a 124.15-second sample, or 11.60 packs/minute. Hand-crafted gears and batch supplies limit the result; green-consuming research and live combat remain pending. See the [preparation report](knowledge/speedrun-preparation.md).
+- Five capacity/fuel tests were added. Controller source and transport are unchanged.
+
 ## Enemy-enabled learning and controller 0.3.2 — 2026-09-09
 
 - Added a sourced strategy playbook and research/defense budgets, with explicit limits for old speedrun guides and version-specific recipes.

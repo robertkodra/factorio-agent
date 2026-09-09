@@ -1,6 +1,10 @@
 # Next opening: hypotheses to test
 
 These are improvements suggested by dry run 001, not a validated speedrun route.
+The later [preparation rehearsal](speedrun-preparation.md) validates automatic red
+delivery on the current-policy checkpoint and adds two lessons: queued crafts
+need a stock-readiness check before use, and fueled drills need observed ore
+coverage and output. See that report for the next scored-segment protocol.
 
 1. Start from a fresh, fixed-seed save with the repaired crafting controller. Record a baseline before the first action. Keep game time and wall time separate.
 2. Mine a nearby large rock, bootstrap the facing coal-drill pair, then start iron and copper production in parallel. The old conveyor demonstration is not a useful production opening.

@@ -7,7 +7,7 @@ The next milestone is a clean, reproducible early-game run under `POLICY.md`, fo
 | ID | Goal | Completion evidence | Current evidence |
 |---|---|---|---|
 | G0 | Establish a clean baseline | Fresh map; initial state and version/seed/mod hashes; no console Lua | Recorded for responsiveness and the separate learning attempt; the latter records controller upgrades and recovery |
-| G1 | Stable early factory | Powered red/green production, supplied labs, enough fuel/input buffers | Historical only; fresh learning run has powered labs with hand-crafted red science |
+| G1 | Stable early factory | Powered red/green production, supplied labs, enough fuel/input buffers | Partial: current-policy checkpoint continuation has automatic red delivery and Electric mining drill; green and continuous input supply remain pending |
 | G2 | First green-consuming research | `military-2` completed by labs after Military, Steel processing, and green-science prerequisites | Pending; producing green packs alone does not pass |
 | G3 | Military science and research | Military-science recipe unlocked; packs produced; a technology requiring military packs completed through labs | Pending |
 | G4 | Oil and blue science | Oil processing chain supplies blue packs; blue-consuming research completed | Pending |
@@ -42,7 +42,7 @@ The optional [MCP stdio facade](MCP.md) wraps the fixed RCON client using the of
 4. Add fresh-run manifests and event-based goal evaluation; then repeat G0/G1 and complete G2.
 5. Extend oil/fluids, modules, robots, and silo operations only as those stages require them, with normal mechanics and stage-specific tests.
 
-For the next learning run, supply/fuel automation and a larger smelting base matter more than shaving a few milliseconds from tool responses. See `knowledge/next-run.md` for observed material and capacity constraints.
+For the next learning run, supply/fuel automation and a larger smelting base matter more than shaving a few milliseconds from tool responses. See [speedrun preparation](knowledge/speedrun-preparation.md) for measured red production, depletion recovery, capacity/fuel calculations and the Military 2 test protocol.
 
 ## What a full rocket-playing agent still needs
 

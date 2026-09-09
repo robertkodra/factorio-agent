@@ -2,6 +2,12 @@
 
 Start with the [strategy playbook](strategy.md), then the [next-run plan](next-run.md). The [historical dry-run report](dry-run-001.md) preserves failed batches, corrected milestones, and validation limits. Original saves and detailed run traces are privately archived; this public folder contains reviewed summaries only.
 
+The [speedrun preparation](speedrun-preparation.md) turns the research into a
+staged practice route, a capacity/fuel calculator and a timed-test protocol. Its
+checkpoint rehearsal produced 30 automatic red packs, completed Electric mining
+drill and recovered an exhausted iron line. Green-consuming research and
+continuous input supply remain pending.
+
 The [Speedrun.com study](speedrun-study.md) records category/timing rules,
 version-matched human reference runs and proposed experiments for travel,
 production order, reserves and execution overhead.

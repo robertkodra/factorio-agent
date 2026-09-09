@@ -80,3 +80,17 @@ then compare position, inventory, ammunition and health to the saved state. Do
 not replay failed batches: a placed turret or queued craft may already exist.
 Prioritize supplied automatic science and ammunition reserves; Military 2 and a
 real defensive encounter remain unverified.
+
+The subsequent [preparation rehearsal](knowledge/speedrun-preparation.md)
+continued that checkpoint in a separate ledger, with controller 0.3.2 unchanged.
+Two red assemblers now deliver automatically to the labs, Electric mining drill
+is completed, and an exhausted iron drill/furnace pair was normally relocated
+and observed producing again. The final checkpoint is saved and paused; the
+rehearsal ledger is closed. Use a new ledger for further play, preserving the
+checkpoint identity and earlier failure records. Science ingredients need
+replenishment, and green science, Military 2 and live defense remain pending.
+
+Use `python3 -m client.capacity` to check the proposed science load and fuel
+reserves. Its supply inputs are assumptions unless measured; placed machines do
+not prove active capacity. The next scored test should follow the declared
+protocol in the preparation report after the complete segment passes practice.
