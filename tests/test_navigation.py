@@ -6,6 +6,22 @@ from client.agent import ROOT
 
 
 class NavigationTests(unittest.TestCase):
+    def test_lua_reflex_controller(self):
+        lua = shutil.which('lua5.2') or shutil.which('lua') or shutil.which('luajit')
+        if not lua:
+            self.skipTest('Install Lua 5.2 or LuaJIT to run reflex tests')
+        result = subprocess.run([lua, 'tests/reflex_test.lua'], cwd=ROOT,
+                                text=True, capture_output=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_lua_combat_observations(self):
+        lua = shutil.which('lua5.2') or shutil.which('lua') or shutil.which('luajit')
+        if not lua:
+            self.skipTest('Install Lua 5.2 or LuaJIT to run combat observation tests')
+        result = subprocess.run([lua, 'tests/combat_observation_test.lua'], cwd=ROOT,
+                                text=True, capture_output=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_lua_inventory_routing(self):
         lua = shutil.which('lua5.2') or shutil.which('lua') or shutil.which('luajit')
         if not lua:

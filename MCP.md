@@ -1,6 +1,6 @@
 # Agent connection through MCP
 
-The optional stdio server exposes the 15 fixed controller operations to MCP
+The optional stdio server exposes the 16 fixed controller operations to MCP
 clients. It uses the [official Python SDK](https://github.com/modelcontextprotocol/python-sdk)
 and validates calls against the same JSON Schemas it advertises. The original
 RCON clients still use only the Python standard library.
@@ -51,6 +51,7 @@ console, or Lua arguments.
 | `observe`, `scan`, `inspect` | Read engineer state and charted/reachable surroundings |
 | `survey`, `placement` | Read nearby charted water/pollution and local normal-placement preflight (controller 0.3.0+) |
 | `factory`, `research_state` | Inspect production and completed research |
+| `guard` | Enable experimental normal-input bullet defense; off by default, source 0.4.0, not live-validated |
 | `submit` | Enqueue one bounded batch and return immediately |
 | `status`, `cancel` | Track or stop the active job without waiting for its planned duration |
 | `pause`, `save` | Record an explicit pause/resume or request a private checkpoint |
@@ -102,6 +103,15 @@ This bounds oscillation; the planner must still select a reachable service
 position or choose an ordinary mining action to clear an obstruction.
 
 ## Recovery and limits
+
+Source 0.4.0 adds `guard` with `enabled` and an optional nearby charted `rally`
+position. It interrupts remaining production on danger, uses equipped weapons
+and normal movement/firing, and needs live validation. Both `cancel` and the
+Stop job button disable it. Completed actions and queued crafts remain. See
+the [implementation report](knowledge/local-controller-001.md) for exact limits.
+`observe` exposes equipment and guard state; `status.events_lost` flags an
+expired cursor. Enemy scans and damage causes now require current visibility,
+not merely previously charted terrain.
 
 - `submit` does not wait for the batch to finish. `status` and `cancel` share
   the persistent connection and wait only for earlier RCON exchanges, bounded

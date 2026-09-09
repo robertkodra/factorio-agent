@@ -1,0 +1,11 @@
+{
+  "base_url": "http://127.0.0.1:11434",
+  "model": "qwen3.8:27b",
+  "num_ctx": 8192,
+  "num_predict": 64,
+  "temperature": 0,
+  "think": false,
+  "keep_alive": "10m",
+  "timeout_seconds": 15,
+  "max_decision_age_seconds": 3
+}

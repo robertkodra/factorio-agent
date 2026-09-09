@@ -1,4 +1,4 @@
-"""Bounded MCP tool contracts for controller 0.3.2, with no generic operation tool.
+"""Bounded MCP tool contracts for controller 0.4.0, with no generic operation tool.
 
 These schemas restrict shape and bounds. The mod remains authoritative for
 unlocks, item costs, reach, collision, ownership, and all gameplay preconditions.
@@ -77,6 +77,11 @@ TOOLS = {
                   "Does not prove power, fluid or inserter connectivity. Recheck at execution."),
     "factory": (obj(), "Read the player's factory, machine inventories, production, and research."),
     "research_state": (obj(), "Read completed technologies, enabled recipe names, and supported production counters."),
+    "guard": (obj(dict(enabled=dict(type="boolean"), rally=obj(POSITION, ("x", "y"))), ("enabled",)),
+              "Enable or disable experimental tick-local bullet defense using equipped weapons and normal ammunition. "
+              "Optional rally must be within 64 tiles on charted terrain; this does not establish route safety. "
+              "Interrupts remaining production work on nearby visible threats, recent damage or critical health. "
+              "Does not equip missing items, model acid, or guarantee survival. Default off. Cancel disables it."),
     "submit": (obj(dict(id=NAME, actions=dict(type="array", minItems=1, maxItems=512,
                                              items=dict(oneOf=ACTIONS))), ("id", "actions")),
                "Submit one item-funded, tick-executed batch and return immediately. One active job. "
@@ -86,11 +91,12 @@ TOOLS = {
                "Use cancel explicitly; queued hand crafting continues. All durations are game ticks."),
     "status": (obj(dict(id=NAME, after=integer(0, 9007199254740991))),
                "Read a job by id (or current job), including up to 100 events after a sequence cursor. "
+               "Retains last_damage/last_death after engineer death; exposes guard state and events_lost. "
                "To page events use the last returned event seq, not the overall sequence. "
                "A client timeout does not stop the game. Reconcile uncertain submissions here."),
     "cancel": (obj(dict(id=NAME)),
                "Stop the remaining active batch and walking/mining. Pass its id to guard against "
-               "cancelling another job. Completed actions and queued hand crafting remain."),
+              "cancelling another job. Also disables the reflex guard. Completed actions and queued hand crafting remain."),
     "pause": (obj(dict(value=dict(type="boolean")), ("value",)),
               "Explicitly pause (true) or resume (false) the simulation. Pauses are logged."),
     "save": (obj(dict(name=NAME), ("name",)),

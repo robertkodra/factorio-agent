@@ -143,7 +143,7 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(client.protocol_version)
             listed = (await client.list_tools()).tools
             self.assertEqual({t.name for t in listed}, set(TOOLS))
-            self.assertEqual(len(listed), 15)
+            self.assertEqual(len(listed), 16)
             for tool in listed:
                 Draft202012Validator.check_schema(tool.input_schema)
                 self.assertEqual(tool.annotations.read_only_hint, tool.name in READ_ONLY)
@@ -177,7 +177,8 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
                     "scan": dict(type="resource", name="iron-ore", radius=128, limit=100),
                     "survey": dict(radius=128, limit=100),
                     "placement": dict(x=1, y=2, entity="stone-furnace", direction="north"),
-                    "status": dict(id="round-trip", after=0), "cancel": dict(id="round-trip")}
+                    "status": dict(id="round-trip", after=0), "cancel": dict(id="round-trip"),
+                    "guard": dict(enabled=True, rally=dict(x=1, y=2))}
         async with Client(create_server(factory)) as client:
             for name in TOOLS:
                 args = examples.get(name, {})
@@ -200,6 +201,8 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
             ("placement", {"x": 1, "y": 2, "entity": "stone-furnace", "direction": "up"}),
             ("inspect", {"x": 1}), ("bind", {"player": 0}),
             ("pause", {"value": 1}), ("status", {"after": -1}),
+            ("guard", {"enabled": 1}), ("guard", {"enabled": True, "code": "x"}),
+            ("guard", {"enabled": True, "rally": {"x": 1}}),
             ("save", {"name": "../overwrite"}), ("save", {"name": "bad\n"}),
         ]
         bad_actions = [
@@ -276,7 +279,7 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
             params = StdioServerParameters(command=sys.executable, cwd=peer.folder.name,
                 args=[str(ROOT / "scripts/run_mcp.py"), "--port", str(peer.port), "--password-file", str(peer.password)])
             async with Client(params, mode="legacy", read_timeout_seconds=5) as client:
-                self.assertEqual(len((await client.list_tools()).tools), 15)
+                self.assertEqual(len((await client.list_tools()).tools), 16)
                 self.assertEqual(peer.connections, 0)
                 self.assertEqual((await client.call_tool("hello")).structured_content["version"], "0.2.0")
                 job = dict(id="stdio-job", actions=[dict(type="wait_ticks", ticks=216000)])
@@ -299,7 +302,7 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
             try:
                 self.assertTrue(await asyncio.to_thread(entered.wait, 2))
                 tools = await asyncio.wait_for(client.list_tools(cache_mode="bypass"), 1)
-                self.assertEqual(len(tools.tools), 15)
+                self.assertEqual(len(tools.tools), 16)
             finally:
                 release.set()
                 await task

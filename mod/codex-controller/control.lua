@@ -1,5 +1,7 @@
-local VERSION = '0.3.2'
+local VERSION = '0.4.0'
 local navigation = require('navigation')
+local combat_observation = require('combat_observation')
+local reflex = require('reflex')
 local resumed = false
 local DIR = {north=0,northeast=2,east=4,southeast=6,south=8,southwest=10,west=12,northwest=14}
 local INV = {fuel=defines.inventory.fuel,source=defines.inventory.furnace_source,result=defines.inventory.furnace_result,chest=defines.inventory.chest,input=defines.inventory.assembling_machine_input,output=defines.inventory.assembling_machine_output,ammo=defines.inventory.turret_ammo}
@@ -35,6 +37,7 @@ local function stop(c)
   if c and c.valid then
     c.walking_state={walking=false}
     c.mining_state={mining=false}
+    if defines.shooting then c.shooting_state={state=defines.shooting.not_shooting,position=c.position} end
   end
 end
 local function finish(j,status,reason)
@@ -240,6 +243,7 @@ end
 local function tick()
   local s=state();local c=s.character
   if not c or not c.valid then
+    if s.guard then s.guard.enabled=false;s.guard.active=false end
     if s.current and s.jobs[s.current].status=='running' then finish(s.jobs[s.current],'failed','character_lost') end
     resumed=false
     return
@@ -251,6 +255,29 @@ local function tick()
     owner.teleport(c.position,c.surface) -- Camera only. Never teleports the engineer.
   end
   local j=s.current and s.jobs[s.current]
+  local defending=false
+  if s.guard and s.guard.enabled then
+    local was_active=s.guard.active
+    local ok,active=pcall(function()
+      check_rules(owner)
+      return reflex.update(c,s.guard,game.tick,s.last_damage)
+    end)
+    if not ok then
+      s.guard.enabled=false;reflex.stop(c)
+      if j and j.status=='running' then finish(j,'failed','reflex_error') end
+      event('reflex_error',{error=tostring(active)});return
+    end
+    if active then
+      if not was_active then event('reflex_started',{mode=s.guard.mode}) end
+      if j and j.status=='running' then
+        -- Preserve the completed steps and stop the remaining batch. The caller
+        -- must revalidate a new plan after combat, never replay old actions.
+        finish(j,'cancelled','defense_interrupt')
+        s.guard.urgent=true;reflex.update(c,s.guard,game.tick,s.last_damage)
+      end
+      defending=true
+    elseif was_active then event('reflex_clear') end
+  end
   if owner and owner.connected and game.tick%6==0 then
     local panel=owner.gui.left.codex_agent_panel
     if not panel then
@@ -265,6 +292,7 @@ local function tick()
     panel.activity.caption=(action and action.type or 'Waiting')..' | Coal '..c.get_item_count('coal')..' | Belts '..c.get_item_count('transport-belt')
     panel.mining.value=c.character_mining_progress
   end
+  if defending then return end
   if not j or j.status~='running' then resumed=false;return end
   if resumed then
     resumed=false
@@ -293,7 +321,7 @@ local function job_status(j)
 end
 local function snapshot()
   local s=state();local c=actor();local owner=game.get_player(s.owner)
-  return {version=VERSION,tick=game.tick,speed=game.speed,paused=game.tick_paused,mods=script.active_mods,position=c.position,health=c.health,max_health=c.max_health,inventory=c.get_main_inventory().get_contents(),ammo=c.get_inventory(defines.inventory.character_ammo).get_contents(),crafting=c.crafting_queue or {},walking=c.walking_state,mining=c.mining_state.mining,actor_unit=c.unit_number,actor_has_player=c.player~=nil,viewer_controller=owner and owner.controller_type,job=job_status(s.current and s.jobs[s.current]),sequence=s.sequence,pauses=s.pauses,policy='no-console-lua-v1'}
+  return {version=VERSION,tick=game.tick,speed=game.speed,paused=game.tick_paused,mods=script.active_mods,position=c.position,health=c.health,max_health=c.max_health,inventory=c.get_main_inventory().get_contents(),ammo=c.get_inventory(defines.inventory.character_ammo).get_contents(),crafting=c.crafting_queue or {},walking=c.walking_state,mining=c.mining_state.mining,actor_unit=c.unit_number,actor_has_player=c.player~=nil,viewer_controller=owner and owner.controller_type,job=job_status(s.current and s.jobs[s.current]),sequence=s.sequence,pauses=s.pauses,policy='no-console-lua-v1',guard=s.guard,guns=defines.inventory.character_guns and reflex.equipment(c) or nil}
 end
 local function factory_snapshot()
 local c=actor();local f=c.force;local s=c.surface;
@@ -338,7 +366,7 @@ end
 local function handle(req)
   if type(req)~='table' then error('request_must_be_object') end
   local s=state();local op=req.op
-  if op=='hello' then return {version=VERSION,commands={'bind','release','submit','status','observe','scan','survey','placement','inspect','factory','research_state','cancel','pause','save'},actions=TYPES} end
+  if op=='hello' then return {version=VERSION,commands={'bind','release','submit','status','observe','scan','survey','placement','inspect','factory','research_state','guard','cancel','pause','save'},actions=TYPES} end
   if op=='bind' then
     if s.character and s.character.valid then check_rules(game.get_player(s.owner));return snapshot() end
     local p=game.get_player(req.player or 1)
@@ -346,24 +374,40 @@ local function handle(req)
     check_rules(p)
     if p.cheat_mode then error('cheat_mode_not_supported') end
     local c=p.character;stop(c)
-    s.character=c;s.owner=p.index
+    s.character=c;s.owner=p.index;s.guard=nil
     p.character=nil;p.set_controller{type=defines.controllers.spectator}
     event('bound',{owner=p.index,unit=c.unit_number,inventory=c.get_main_inventory().get_contents(),position=c.position})
     return snapshot()
   elseif op=='release' then
     local c=actor();local p=game.get_player(s.owner)
     if s.current and s.jobs[s.current].status=='running' then finish(s.jobs[s.current],'cancelled','released') end
-    stop(c);p.set_controller{type=defines.controllers.character,character=c};s.character=nil
+    s.guard=nil;stop(c);p.set_controller{type=defines.controllers.character,character=c};s.character=nil
     if p.gui.left.codex_agent_panel then p.gui.left.codex_agent_panel.destroy() end
     event('released');return {released=true}
   elseif op=='observe' then return snapshot()
   elseif op=='factory' then return factory_snapshot()
   elseif op=='research_state' then return research_snapshot()
+  elseif op=='guard' then
+    local c=actor();check_rules(game.get_player(s.owner))
+    for k,_ in pairs(req) do if k~='op' and k~='enabled' and k~='rally' then error('unknown_guard_field') end end
+    if type(req.enabled)~='boolean' then error('guard_enabled_boolean_required') end
+    if req.rally then
+      if type(req.rally)~='table' or not coordinate(req.rally.x) or not coordinate(req.rally.y) then error('invalid_rally') end
+      for k,_ in pairs(req.rally) do if k~='x' and k~='y' then error('unknown_rally_field') end end
+      if (req.rally.x-c.position.x)^2+(req.rally.y-c.position.y)^2>4096 or
+        not c.force.is_chunk_charted(c.surface,{math.floor(req.rally.x/32),math.floor(req.rally.y/32)}) then error('rally_must_be_nearby_and_charted') end
+    end
+    if s.guard and s.guard.active then stop(c) end
+    s.guard={enabled=req.enabled,active=false,urgent=true,rally=req.rally,mode='watching'}
+    event('guard_configured',{enabled=req.enabled,rally=req.rally});return s.guard
   elseif op=='status' then
     if req.id and not s.jobs[req.id] then error('unknown_job_id') end
-    local j=req.id and s.jobs[req.id] or (s.current and s.jobs[s.current]);local out=job_status(j);out.tick=game.tick;out.sequence=s.sequence;out.events={}
+    local j=req.id and s.jobs[req.id] or (s.current and s.jobs[s.current]);local out=job_status(j);out.tick=game.tick;out.sequence=s.sequence;out.events={};out.last_damage=s.last_damage;out.last_death=s.last_death
     local after=req.after or s.sequence
     if not integer(after,0,s.sequence) then error('invalid_cursor') end
+    out.oldest_sequence=s.events[1] and s.events[1].seq or s.sequence+1
+    out.events_lost=after<out.oldest_sequence-1
+    out.guard=s.guard
     for _,e in ipairs(s.events) do if e.seq>after and #out.events<100 then out.events[#out.events+1]=e end end
     return out
   elseif op=='submit' then
@@ -375,6 +419,7 @@ local function handle(req)
       if fingerprint(s.jobs[req.id].actions)~=signature then error('id_conflict') end
       return job_status(s.jobs[req.id])
     end
+    if s.guard and s.guard.active then error('defense_active_revalidate_after_clear') end
     if s.current and s.jobs[s.current].status=='running' then error('busy') end
     if #s.order>=256 then error('job_history_full_save_and_start_new_session') end
     local j={id=req.id,actions=actions,fingerprint=signature,index=1,status='running',started_tick=game.tick,metrics={ticks=0,max_step=0}}
@@ -384,6 +429,7 @@ local function handle(req)
     local j=s.current and s.jobs[s.current]
     if req.id and (not j or req.id~=j.id) then error('job_id_mismatch') end
     if j and j.status=='running' then finish(j,'cancelled','requested') end
+    if s.guard then s.guard.enabled=false;s.guard.active=false;stop(s.character) end
     return job_status(j)
   elseif op=='pause' then
     if type(req.value)~='boolean' then error('boolean_required') end
@@ -438,13 +484,15 @@ local function handle(req)
     local es=c.surface.find_entities_filtered{position=c.position,radius=radius,name=req.name,type=req.type}
     local out={}
     for _,e in ipairs(es) do
-      if e~=c and c.force.is_chunk_charted(c.surface,{math.floor(e.position.x/32),math.floor(e.position.y/32)}) then
-        out[#out+1]={name=e.name,type=e.type,force=e.force.name,health=e.health,x=e.position.x,y=e.position.y,amount=e.type=='resource' and e.amount or nil,distance=math.sqrt((e.position.x-c.position.x)^2+(e.position.y-c.position.y)^2)}
+      local chunk={math.floor(e.position.x/32),math.floor(e.position.y/32)}
+      if e~=c and c.force.is_chunk_charted(c.surface,chunk) and
+        (e.force.name~='enemy' or c.force.is_chunk_visible(c.surface,chunk)) then
+        out[#out+1]={id=e.unit_number,name=e.name,type=e.type,force=e.force.name,health=e.health,x=e.position.x,y=e.position.y,amount=e.type=='resource' and e.amount or nil,distance=math.sqrt((e.position.x-c.position.x)^2+(e.position.y-c.position.y)^2)}
       end
     end
     table.sort(out,function(a,b)return a.distance<b.distance end)
     local results={};for i=1,math.min(#out,req.limit and math.min(100,math.max(1,req.limit)) or 20)do results[i]=out[i]end
-    return {entities=results,total=#out,tick=game.tick}
+    return {entities=results,total=#out,truncated=#results<#out,tick=game.tick,scope='charted_with_currently_visible_enemies'}
   elseif op=='inspect' then
     local c=actor();if not coordinate(req.x) or not coordinate(req.y) then error('invalid_coordinates') end
     local e=entity_at(c,req);close_to(c,e)
@@ -470,6 +518,14 @@ script.on_init(function()state()end)
 script.on_configuration_changed(function()state().version=VERSION end)
 script.on_load(function()resumed=true end)
 script.on_event(defines.events.on_tick,tick)
+script.on_event(defines.events.on_entity_damaged,function(e)
+  local s=state();local record=combat_observation.record(e,s.character,'damage')
+  if record then s.last_damage=record;if s.guard then s.guard.urgent=true end;event('engineer_damaged',record) end
+end)
+script.on_event(defines.events.on_entity_died,function(e)
+  local s=state();local record=combat_observation.record(e,s.character,'death')
+  if record then s.last_death=record;event('engineer_died',record) end
+end)
 script.on_event(defines.events.on_player_crafted_item,function(e)
   if e.player_index==state().owner then
     event('player_crafted',{recipe=e.recipe.name,item=e.item_stack.name,count=e.item_stack.count})
@@ -484,4 +540,5 @@ script.on_event(defines.events.on_gui_click,function(e)
   local s=state();if e.player_index~=s.owner then return end
   local j=s.current and s.jobs[s.current]
   if j and j.status=='running' then finish(j,'cancelled','viewer_stop_button') end
+  if s.guard then s.guard.enabled=false;s.guard.active=false;stop(s.character) end
 end)

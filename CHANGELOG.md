@@ -1,5 +1,18 @@
 # Changes
 
+## Local Qwen and reflex source 0.4.0 — 2026-09-09
+
+- Added a persistent loopback Ollama selector with durable non-thinking Qwen configuration, strict candidate-ID output and no generated commands. Offline evaluation matched 48/50 expected choices, with 0.694-second median and 1.136-second p95 latency. Both failures at critical health remain recorded.
+- Added a shadow supervisor with independent polling, event cursors, durable private records, one pending inference and stale-advice rejection.
+- Added opt-in tick-local bullet defense source using normal equipped weapon and movement inputs; danger cancels remaining production, while explicit stop disables defense. Added current-visibility filtering and event-loss metadata. Mod installation and live survival/performance checks remain pending.
+- See the [implementation and evidence report](knowledge/local-controller-001.md). No model training, live restart, or rocket milestone is claimed.
+
+## Failed rocket attempt and damage observations — 2026-09-09
+
+- Stopped and preserved the fresh attempt at the user's request after two deaths. The user observed biters attacking; long travel batches and ignored critical health readings were the operational failures. See the [failure review](knowledge/rocket-attempt-001-review.md).
+- Source 0.3.3 records normal engineer damage/death events and retains their evidence in `status` after character loss. Uncharted attacker identity/location are omitted. It makes no changes to combat, health or pause behavior.
+- All 42 unit tests pass, including event wiring, post-death status and observation boundaries. The update is not installed or live-tested; the game remains stopped.
+
 ## Speedrun preparation and checkpoint rehearsal — 2026-09-09
 
 - Added a staged route and repeatable Military 2 test protocol based on the speedrun study and the pinned recipe catalog. A read-only capacity/fuel calculator exposes metal deficits before expanding science.

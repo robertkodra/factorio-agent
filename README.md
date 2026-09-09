@@ -2,7 +2,12 @@
 
 A local, tick-driven controller for Factorio **2.0.77**, tested on macOS with Steam. The planner submits batches; the game executes ordinary walking, mining, crafting, item-funded construction, transfers, and research on its own ticks. The direct Python clients use only the standard library.
 
-Controller **0.3.2** uses a fixed `/codex-agent` JSON interface over persistent RCON. An optional [MCP stdio facade](MCP.md) exposes its 15 fixed operations with validated schemas (Python 3.10+ and separate dependencies). Base gameplay is enabled, with Space Age, Quality, and Elevated Rails disabled. The control-only mod changes no prototypes or recipes.
+Controller source **0.4.0** uses a fixed `/codex-agent` JSON interface over persistent RCON. An optional [MCP stdio facade](MCP.md) exposes its 16 fixed operations with validated schemas (Python 3.10+ and separate dependencies). Base gameplay is enabled, with Space Age, Quality, and Elevated Rails disabled. The control-only mod changes no prototypes or recipes. The new reflex source is not installed or live-validated.
+
+The [local Qwen integration](knowledge/local-controller-001.md) is configured and
+tested through Ollama: 48/50 expected offline choices, 0.694-second median
+response. A persistent shadow supervisor and experimental tick-local defense
+source are implemented. This is not autonomous rocket readiness.
 
 This is an experimental **tool-assisted vanilla-mechanics benchmark**. It has demonstrated conveyors, electricity, and red/green science production historically. A [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) now passes under the current no-console-Lua policy. A separate [enemy-enabled learning attempt](knowledge/learning-001.md) completed Automation and Gun turret and verified one loaded turret. Fresh automated red/green production, green-consuming research, robotics, and a rocket launch remain pending. No human speedrun eligibility or record is claimed.
 
@@ -66,7 +71,7 @@ After an uncertain transport failure, reconnect and inspect the same job ID. The
 
 ## Interface and limits
 
-Fixed operations: `hello`, `bind`, `release`, `observe`, `scan`, `survey`, `placement`, `inspect`, `factory`, `research_state`, `submit`, `status`, `cancel`, `pause`, `save`.
+Fixed operations: `hello`, `bind`, `release`, `observe`, `scan`, `survey`, `placement`, `inspect`, `factory`, `research_state`, `guard`, `submit`, `status`, `cancel`, `pause`, `save`.
 
 Actions: `walk`, `mine`, `craft`, `await_craft`, `place`, `put`, `take`, `wait_inventory`, `research`, `set_recipe`, `rotate`, `wait_ticks`.
 

@@ -28,7 +28,7 @@ python3 client/server.py start --save clean-001
 Setup enables only base plus `codex-controller`, backs up the previous client mod list, and generates a new RCON credential in ignored `runtime/`. The runtime directory is private; server logs contain launch arguments and must not be published. Creating a map refuses to overwrite an existing save. Stop an existing server before starting another on these ports.
 
 4. Start the graphical client and connect via Multiplayer → Connect to address → `127.0.0.1:34198`. RCON binds to `127.0.0.1:27016`. Dismiss the introduction with Tab and keep the viewing client connected for normal hand crafting.
-5. Check controller version `0.3.2`, then bind and inspect:
+5. Check the installed controller version against the reviewed source, then bind and inspect:
 
 ```sh
 python3 client/agent.py '{"op":"hello"}'
@@ -94,3 +94,24 @@ Use `python3 -m client.capacity` to check the proposed science load and fuel
 reserves. Its supply inputs are assumptions unless measured; placed machines do
 not prove active capacity. The next scored test should follow the declared
 protocol in the preparation report after the complete segment passes practice.
+
+## Latest attempt is stopped
+
+The user requested a fresh rocket attempt and then imposed no cheating and no
+pausing. After two deaths, the user explicitly stopped the game and requested
+relearning; they observed several biters attacking. The server is shut down and
+the failed checkpoint is preserved. Do not resume automatically. Read the
+[failure review](knowledge/rocket-attempt-001-review.md).
+
+Source 0.3.3 adds read-only damage/death evidence in `status`. It is unit-tested
+but has not been installed or live-tested. The stopped attempt ran 0.3.2. This
+diagnostic addition does not provide combat, automatic retreat or safer paths.
+
+## Local Qwen and reflex implementation
+
+Source 0.4.0 supersedes the uninstalled 0.3.3 diagnostic draft. Read
+[local-controller-001](knowledge/local-controller-001.md) for the durable Ollama
+configuration, measured 50-case results, shadow-supervisor command and remaining
+live checks. The local model is set up and inference tested. The new mod is still
+uninstalled; Factorio stays stopped. Do not confuse mocked reflex inputs with a
+survived encounter, or shadow advice with autonomous factory control.

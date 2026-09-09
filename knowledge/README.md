@@ -1,5 +1,14 @@
 # Factorio knowledge base
 
+Latest development: [local Qwen and responsive-controller implementation](local-controller-001.md).
+Local inference and offline tests are complete; the new mod is not installed or
+live-validated. Full production control and learning remain pending.
+
+Read the latest [failed rocket-attempt review](rocket-attempt-001-review.md)
+before playing again. Two deaths exposed missing combat response and health
+monitoring during travel. The user observed biters attacking and stopped the
+game. Preserve that stopped state; the new diagnostic source has no live test.
+
 Start with the [strategy playbook](strategy.md), then the [next-run plan](next-run.md). The [historical dry-run report](dry-run-001.md) preserves failed batches, corrected milestones, and validation limits. Original saves and detailed run traces are privately archived; this public folder contains reviewed summaries only.
 
 The [speedrun preparation](speedrun-preparation.md) turns the research into a
