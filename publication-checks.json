@@ -1,0 +1,51 @@
+{
+  "review_date": "2026-09-09",
+  "scope": "Reviewed public source snapshot and its independent reachable Git history",
+  "source_commit_checked": "efd17341f53892eb1ab24bce22402502fa275991",
+  "tracked_files_checked_before_this_report": 32,
+  "checks": {
+    "unit_tests": {
+      "passed": 11,
+      "failed": 0
+    },
+    "publication_guard": {
+      "staged_content_findings": 0,
+      "reachable_history_findings": 0
+    },
+    "gitleaks": {
+      "version": "8.30.1",
+      "official_release_archive_sha256_verified": true,
+      "staged_findings": 0,
+      "reachable_history_findings": 0,
+      "redacted_output": true
+    },
+    "local_private_value_scan": {
+      "findings": 0,
+      "values_kept_private": true
+    },
+    "relative_document_links": {
+      "broken": 0
+    },
+    "notebook_outputs": {
+      "default_ignored_by_git": true,
+      "named_run_ignored_by_git": true
+    },
+    "gameplay_lua": {
+      "unchanged_from_controller_0_2_0": true,
+      "sha256": "d97ae19ae2b833e9b48fe5c7e4c466105352217194e1487f632a6bf80a6a2fea"
+    },
+    "live_gameplay_rerun": false
+  },
+  "excluded": [
+    "Original Git history and branches",
+    "Historical save ZIPs and binary archives",
+    "Raw action, event, server and observation logs",
+    "Runtime configuration and credentials",
+    "Environment files and personal handoff material"
+  ],
+  "limits": [
+    "Pattern scans do not prove the absence of every possible secret or personal detail.",
+    "Original binary saves are privately preserved, not certified as sanitized.",
+    "Public historical results are aggregate summaries; full traces remain private."
+  ]
+}
