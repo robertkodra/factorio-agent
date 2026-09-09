@@ -6,6 +6,12 @@ rocket route. Use the installed catalog for costs and the live world for state.
 
 ## What to learn from experienced players
 
+The [Speedrun.com study](speedrun-study.md) adds current category rules, a
+version-matched Default Settings reference, and five proposed experiments.
+Use its distinction between random-map real-time runs and fixed-map practice
+when interpreting comparisons. It also identifies which videos and guides were
+actually inspected, and which remain study candidates.
+
 [Nefrums' beginner speedrun guide](https://docs.google.com/presentation/d/1XgyTdHzQM1cQrv1YpZJuRGtMv6AE9j4h6Phdn4Fe8-c/edit)
 was read through its public text export. Its useful principles are to expand
 mining before the next consuming build, feed production directly where practical,

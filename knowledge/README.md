@@ -2,6 +2,10 @@
 
 Start with the [strategy playbook](strategy.md), then the [next-run plan](next-run.md). The [historical dry-run report](dry-run-001.md) preserves failed batches, corrected milestones, and validation limits. Original saves and detailed run traces are privately archived; this public folder contains reviewed summaries only.
 
+The [Speedrun.com study](speedrun-study.md) records category/timing rules,
+version-matched human reference runs and proposed experiments for travel,
+production order, reserves and execution overhead.
+
 The subsequent [live responsiveness test](responsiveness-001.md) started a fresh
 map under the current policy, completed the 29-action conveyor opening, and
 measured MCP latency, cancellation, and reconnection with the Steam client
