@@ -7,7 +7,7 @@ import threading
 import unittest
 from pathlib import Path
 
-from client.agent import Agent, AgentError
+from client.agent import Agent, AgentError, AgentRejected
 
 
 def read_packet(sock):
@@ -97,6 +97,34 @@ class TransportTests(unittest.TestCase):
             with Agent(**kwargs) as agent:
                 with self.assertRaisesRegex(AgentError, "response type or ID"):
                     agent.request("observe")
+        self.exercise(serve, check)
+
+    def test_malformed_envelope_closes_connection_with_unknown_outcome(self):
+        def serve(peer):
+            rid, _, _ = read_packet(peer)
+            peer.sendall(Agent._packet(rid, 2, ""))
+            rid, _, _ = read_packet(peer)
+            peer.sendall(Agent._packet(rid, 0, '{"ok":true}'))
+        def check(kwargs):
+            with Agent(**kwargs) as agent:
+                with self.assertRaisesRegex(AgentError, "Invalid controller response envelope"):
+                    agent.request("submit", id="uncertain", actions=[dict(type="wait_ticks", ticks=1)])
+                self.assertEqual(agent.sock.fileno(), -1)
+        self.exercise(serve, check)
+
+    def test_definite_rejection_preserves_connection_for_status(self):
+        def serve(peer):
+            rid, _, _ = read_packet(peer)
+            peer.sendall(Agent._packet(rid, 2, ""))
+            rid, _, _ = read_packet(peer)
+            peer.sendall(Agent._packet(rid, 0, '{"ok":false,"error":"busy"}'))
+            rid, _, _ = read_packet(peer)
+            peer.sendall(Agent._packet(rid, 0, '{"ok":true,"result":{"status":"running"}}'))
+        def check(kwargs):
+            with Agent(**kwargs) as agent:
+                with self.assertRaisesRegex(AgentRejected, "busy"):
+                    agent.request("submit", id="busy", actions=[dict(type="wait_ticks", ticks=1)])
+                self.assertEqual(agent.request("status"), dict(status="running"))
         self.exercise(serve, check)
 
 

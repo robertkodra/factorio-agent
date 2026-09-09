@@ -1,14 +1,15 @@
 # Factorio agent controller
 
-A local, tick-driven controller for Factorio **2.0.77**, tested on macOS with Steam. The planner submits batches; the game executes ordinary walking, mining, crafting, item-funded construction, transfers, and research on its own ticks. Python 3 uses only the standard library.
+A local, tick-driven controller for Factorio **2.0.77**, tested on macOS with Steam. The planner submits batches; the game executes ordinary walking, mining, crafting, item-funded construction, transfers, and research on its own ticks. The direct Python clients use only the standard library.
 
-Controller **0.2.0** uses a fixed `/codex-agent` JSON interface over persistent RCON. A standard MCP protocol facade remains on the [roadmap](ROADMAP.md). Base gameplay is enabled, with Space Age, Quality, and Elevated Rails disabled. The control-only mod changes no prototypes or recipes.
+Controller **0.2.0** uses a fixed `/codex-agent` JSON interface over persistent RCON. An optional [MCP stdio facade](MCP.md) exposes its 13 fixed operations with validated schemas (Python 3.10+ and separate dependencies). Base gameplay is enabled, with Space Age, Quality, and Elevated Rails disabled. The control-only mod changes no prototypes or recipes.
 
 This is an experimental **tool-assisted vanilla-mechanics benchmark**. It has demonstrated conveyors, electricity, and red/green science production. It has not completed a fresh run under the current no-console-Lua policy, green-consuming research, robotics, or a rocket launch. No human speedrun eligibility or record is claimed.
 
 ## Start here
 
 - [Setup and continuation](HANDOFF.md)
+- [Connect an agent through MCP](MCP.md)
 - [No-cheats policy](POLICY.md)
 - [Progression and MCP roadmap](ROADMAP.md)
 - [Knowledge base](knowledge/README.md) and [dry-run results](knowledge/dry-run-001.md)

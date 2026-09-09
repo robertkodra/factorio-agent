@@ -1,5 +1,13 @@
 # Changes
 
+## MCP connection — 2026-09-09
+
+- Added an optional local stdio MCP server using the official Python SDK, with 13 fixed tools, strict per-action schemas, and a persistent RCON connection. Existing CLI clients retain their standard-library-only setup.
+- Added explicit dropped-response reconciliation by job ID, no automatic mutation replay, responsive tool discovery, and distinction between definite controller rejection and uncertain transport failure.
+- Added MCP SDK/stdio/socket tests and an optional `--mcp` historical fixture check. The live check passed initialization with protocol 2025-11-25, observation, invalid-action rejection, and submit/status/cancel on an isolated copy in Factorio 2.0.77. Tick, engineer position, inventory, and the source save hash were preserved.
+- The first live attempt correctly failed the mod policy because omitted bundled expansions defaulted to enabled. Setup and isolated tests now explicitly disable Space Age, Quality, and Elevated Rails; the subsequent live test verified only base and controller were active. The failed attempt's private runtime directory is retained.
+- No controller Lua or gameplay milestone changed. Fresh G0/G1, green-consuming research, robust navigation, sustained supply planning, and later science/robots/rocket remain pending.
+
 ## Public source publication — 2026-09-09
 
 - Published reviewed controller source, plans, tests, roadmap, and summarized historical findings with independent Git history.

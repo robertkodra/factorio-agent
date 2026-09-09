@@ -52,7 +52,7 @@ python3 client/agent.py '{"op":"pause","value":false}'
 
 Set the same label in each recording process. Without it, output goes to `runtime/notebook`. Initialization refuses to overwrite a baseline and requires a paused game with no running job. A `stop-monitor` marker closes a run to further notebook actions. Record the fresh save name, map settings, version, and mod hashes alongside observations; an observed baseline alone does not prove fresh-map provenance.
 
-Work through G0/G1, then Military 2 as the first green-consuming research target after its prerequisites. The historical green-pack production does not satisfy that milestone. The new MCP facade, robust navigation, milestone evaluator, and later science stages remain pending.
+Work through G0/G1, then Military 2 as the first green-consuming research target after its prerequisites. The historical green-pack production does not satisfy that milestone. The [MCP facade](MCP.md) is implemented and tested; robust navigation, the milestone evaluator, and later science stages remain pending.
 
 ## Local live checks
 
@@ -61,6 +61,6 @@ Normal unit tests use local socket fixtures and do not need a game. These additi
 - `python3 -m tests.live_checks` changes a **completed first-belts test world**, expecting its original furnace location. Use an expendable test world, never an unrelated factory. Its report goes to ignored runtime storage.
 - `python3 -m tests.handoff_live --save runtime/checkpoints/dry-run-001-green-science.zip` starts its own isolated server and verifies fixed observations against the **specific historical green-science fixture**. Obtain that fixture privately if authorized; it is not shipped publicly. The test checks the historical counts, is not suitable for any arbitrary save, and shuts down its own process. Its copied save, credential, and report stay under runtime.
 
-Neither optional test was replayed during publication. Earlier live results are summarized in [CHANGELOG.md](CHANGELOG.md).
+Neither optional test was replayed during the initial publication. The subsequent MCP change re-ran the historical reload test with `--mcp`, also checking submission, status, and cancellation on its disposable copy. Use the MCP environment's Python for that option. Results and limits are summarized in [CHANGELOG.md](CHANGELOG.md).
 
 Stop the configured local server with `python3 client/server.py stop` and wait for it to exit before starting a different save. The stop command requests graceful shutdown; it does not wait for completion.

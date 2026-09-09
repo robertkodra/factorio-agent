@@ -4,9 +4,15 @@ from unittest.mock import patch
 
 from client.play import query
 from client.play import call
+from client.server import controller_mod_list
 
 
 class PolicyTests(unittest.TestCase):
+    def test_bundled_expansions_are_explicitly_disabled(self):
+        enabled = {m['name']: m['enabled'] for m in controller_mod_list()['mods']}
+        self.assertEqual(enabled, {'base': True, 'codex-controller': True,
+                                  'space-age': False, 'quality': False, 'elevated-rails': False})
+
     def test_arbitrary_lua_is_rejected_before_transport(self):
         with patch('client.play.Agent') as transport:
             with self.assertRaisesRegex(RuntimeError, 'disabled'):
