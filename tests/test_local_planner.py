@@ -103,6 +103,33 @@ class FakeGame:
 
 
 class SupervisorTests(unittest.TestCase):
+    def test_live_guard_clock_accepts_advice_but_changed_threat_rejects_it(self):
+        from concurrent.futures import Future
+        from client.supervisor import context_key, planning_context
+        game, records, clock = FakeGame(), [], [0]
+        game.observation['guard'] = {'enabled': True, 'active': False,
+            'observation': {'tick': 3, 'entities': [], 'total': 0}}
+        supervisor = Supervisor(game, None, lambda k, v: records.append((k, v)),
+                                clock=lambda: clock[0])
+        supervisor.last_requested = float('inf')
+        key = context_key(game.observation)
+        context = planning_context(game.observation)
+        self.assertNotIn('tick', context)
+        self.assertNotIn('tick', context['guard']['observation'])
+        original_tick = game.observation['guard']['observation']['tick']
+        self.assertEqual(original_tick, 3)
+        future = Future(); future.set_result({'choice': 'verify_work'})
+        supervisor.pending = (future, 0, key, 12)
+        clock[0] = .7
+        game.observation['tick'] = 45
+        game.observation['guard']['observation']['tick'] = 45
+        supervisor.poll()
+        self.assertIn('advice_available', [k for k, v in records])
+        supervisor.pending = (future, .7, key, 12)
+        game.observation['guard']['observation'].update(total=1, entities=[{'id': 7}])
+        supervisor.poll()
+        self.assertIn('advice_discarded', [k for k, v in records])
+
     def test_delayed_model_does_not_block_sixty_seconds_of_observation(self):
         entered, release = threading.Event(), threading.Event()
         class SlowPlanner:

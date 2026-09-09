@@ -60,13 +60,23 @@ def compact(observation):
         'position', 'inventory', 'ammo', 'guns', 'job', 'guard', 'paused', 'speed')}
 
 
-def context_key(observation):
+def planning_context(observation):
     # Ignore time alone. Any meaningful change invalidates the queued advice.
     data = compact(observation)
     data.pop('tick', None)
     if isinstance(data.get('guard'), dict):
         data['guard'] = {k: v for k, v in data['guard'].items() if k != 'tick'}
-    return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+        # The live reflex timestamps its nested sample every three ticks, even
+        # when no enemy or equipment state changes. Preserve the threats, but
+        # do not invalidate every inference merely because another scan ran.
+        if isinstance(data['guard'].get('observation'), dict):
+            data['guard']['observation'] = {
+                k: v for k, v in data['guard']['observation'].items() if k != 'tick'}
+    return data
+
+
+def context_key(observation):
+    return hashlib.sha256(json.dumps(planning_context(observation), sort_keys=True).encode()).hexdigest()
 
 
 def candidates_for(observation):
@@ -94,7 +104,10 @@ class Supervisor:
         self.emit('advice_requested', dict(observation=compact(observation), candidates=choices))
         def work():
             try:
-                future.set_result(self.planner.decide(compact(observation), choices))
+                # Stable inputs also let Ollama reuse the unchanged prompt.
+                # The request timestamp and original observation stay in the
+                # private ledger; freshness is enforced outside model output.
+                future.set_result(self.planner.decide(planning_context(observation), choices))
             except BaseException as exc:
                 future.set_exception(exc)
         threading.Thread(target=work, daemon=True, name='local-planner').start()

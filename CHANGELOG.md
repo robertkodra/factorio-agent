@@ -1,5 +1,18 @@
 # Changes
 
+## Live defense validation and controller 0.4.1 — 2026-09-09
+
+- Controller 0.4.0 survived fourteen small biters with native firing and retreat:
+  56 rounds consumed, 44.8 damage, no new deaths or gameplay pauses. See the
+  [practice report](knowledge/live-defense-001.md) for evidence and limits.
+- Fixed shadow-advice invalidation from changing nested sample timestamps and
+  removed observation-clock noise from model prompts. Live response time remains
+  unsuitable for reflex control; accepted advice is still not executed.
+- Source 0.4.1 rejects name/count transfers involving partial magazines before
+  inventory mutation. Native UI handled partial ammunition during practice.
+  The new rejection is unit-tested and installed after the saved practice;
+  the encounter itself used 0.4.0. All 52 tests pass.
+
 ## Local Qwen and reflex source 0.4.0 — 2026-09-09
 
 - Added a persistent loopback Ollama selector with durable non-thinking Qwen configuration, strict candidate-ID output and no generated commands. Offline evaluation matched 48/50 expected choices, with 0.694-second median and 1.136-second p95 latency. Both failures at critical health remain recorded.

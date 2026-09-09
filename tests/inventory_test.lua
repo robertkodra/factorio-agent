@@ -24,7 +24,7 @@ local character={valid=true,type='character',position={x=0,y=0},walking_state={w
   get_main_inventory=function()return main end,get_inventory=function(id)assert(id==8);return ammo end}
 storage={agent={character=character,jobs={},order={},events={},sequence=0}}
 game={tick=1,speed=1,get_player=function()return nil end}
-prototypes={item={['firearm-magazine']={}}}
+prototypes={item={['firearm-magazine']={magazine_size=10}}}
 package.path='mod/codex-controller/?.lua;'..package.path
 dofile('mod/codex-controller/control.lua')
 local serial=0
@@ -49,4 +49,17 @@ assert(ammo.count==11 and turret.count==9)
 entity.type='lab'
 assert(transfer('put','ammo',1).status=='failed')
 assert(ammo.count==11 and turret.count==9)
+entity.type='ammo-turret'
+ammo[1]={valid_for_read=true,name='firearm-magazine',ammo=4}
+local failed=transfer('put','ammo',1)
+assert(failed.status=='failed' and failed.error:find('partial_ammo_requires_native_inventory'))
+assert(ammo.count==11 and turret.count==9 and ammo[1].ammo==4)
+ammo[1].ammo=10
+turret[1]={valid_for_read=true,name='firearm-magazine',ammo=7}
+assert(transfer('put','ammo',1).status=='failed')
+assert(transfer('take','ammo',1).status=='failed')
+assert(ammo.count==11 and turret.count==9 and turret[1].ammo==7)
+turret[1].ammo=10
+assert(transfer('put','ammo',1).status=='complete')
+assert(ammo.count==10 and turret.count==10)
 print('Explicit ammo routing, default main inventory, and entity guard passed')

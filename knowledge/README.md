@@ -1,13 +1,16 @@
 # Factorio knowledge base
 
-Latest development: [local Qwen and responsive-controller implementation](local-controller-001.md).
-Local inference and offline tests are complete; the new mod is not installed or
-live-validated. Full production control and learning remain pending.
+Latest validation: [first live defensive encounter](live-defense-001.md).
+Controller 0.4.0 survived fourteen small biters with local Qwen running in shadow
+mode. The practice checkpoint is saved and the game stopped; the subsequent
+0.4.1 partial-ammunition safeguard is installed and unit-tested. Full factory
+control, further combat generalization and learning remain pending.
 
 Read the latest [failed rocket-attempt review](rocket-attempt-001-review.md)
 before playing again. Two deaths exposed missing combat response and health
 monitoring during travel. The user observed biters attacking and stopped the
-game. Preserve that stopped state; the new diagnostic source has no live test.
+game. The later authorized practice used a separate copy and preserved that
+original checkpoint and its failure evidence.
 
 Start with the [strategy playbook](strategy.md), then the [next-run plan](next-run.md). The [historical dry-run report](dry-run-001.md) preserves failed batches, corrected milestones, and validation limits. Original saves and detailed run traces are privately archived; this public folder contains reviewed summaries only.
 

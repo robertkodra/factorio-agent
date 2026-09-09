@@ -1,4 +1,4 @@
-local VERSION = '0.4.0'
+local VERSION = '0.4.1'
 local navigation = require('navigation')
 local combat_observation = require('combat_observation')
 local reflex = require('reflex')
@@ -169,6 +169,21 @@ local function start_step(c,j,a)
     local e=entity_at(c,a);close_to(c,e)
     local own=a.player_inventory=='ammo' and c.get_inventory(defines.inventory.character_ammo) or c.get_main_inventory();local other=inventory(e,a.inventory)
     local src=a.type=='put' and own or other;local dst=a.type=='put' and other or own
+    -- Name/count transfers cannot represent a partly spent magazine. Refuse
+    -- before mutating either inventory rather than recreate missing rounds.
+    -- Use the native inventory UI for these stacks until typed stack transfer
+    -- is implemented and tested against the game.
+    local magazine_size=prototypes.item[a.item].magazine_size
+    if magazine_size then
+      for _,inv in ipairs({src,dst}) do
+        for i=1,#inv do
+          local stack=inv[i]
+          if stack.valid_for_read and stack.name==a.item and stack.ammo~=magazine_size then
+            error('partial_ammo_requires_native_inventory')
+          end
+        end
+      end
+    end
     if src.get_item_count(a.item)<a.count then error('insufficient_items') end
     if dst.get_insertable_count(a.item)<a.count then error('insufficient_space') end
     local n=src.remove{name=a.item,count=a.count};local added=dst.insert{name=a.item,count=n}

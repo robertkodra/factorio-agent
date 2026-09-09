@@ -95,12 +95,13 @@ reserves. Its supply inputs are assumptions unless measured; placed machines do
 not prove active capacity. The next scored test should follow the declared
 protocol in the preparation report after the complete segment passes practice.
 
-## Latest attempt is stopped
+## Historical failed attempt
 
 The user requested a fresh rocket attempt and then imposed no cheating and no
 pausing. After two deaths, the user explicitly stopped the game and requested
 relearning; they observed several biters attacking. The server is shut down and
-the failed checkpoint is preserved. Do not resume automatically. Read the
+the failed checkpoint is preserved. Later practice used a separately authorized
+copy rather than replacing this failure record. Read the
 [failure review](knowledge/rocket-attempt-001-review.md).
 
 Source 0.3.3 adds read-only damage/death evidence in `status`. It is unit-tested
@@ -112,6 +113,11 @@ diagnostic addition does not provide combat, automatic retreat or safer paths.
 Source 0.4.0 supersedes the uninstalled 0.3.3 diagnostic draft. Read
 [local-controller-001](knowledge/local-controller-001.md) for the durable Ollama
 configuration, measured 50-case results, shadow-supervisor command and remaining
-live checks. The local model is set up and inference tested. The new mod is still
-uninstalled; Factorio stays stopped. Do not confuse mocked reflex inputs with a
-survived encounter, or shadow advice with autonomous factory control.
+live checks. The local model is set up and inference tested. A later authorized
+[live practice](knowledge/live-defense-001.md) installed 0.4.0 and survived one
+fourteen-biter encounter. Military, Gun turret and Automation completed, and the
+final checkpoint has a loaded turret and full-health engineer. The practice is
+closed and the server/client stopped. Source 0.4.1 is now installed; its new
+partial-ammunition transfer rejection is unit-tested but not live-tested. Use
+native inventory controls for partial magazines. Start a new ledger when
+continuing. Shadow advice remains disconnected from production actions.

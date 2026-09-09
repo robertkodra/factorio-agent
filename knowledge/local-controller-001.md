@@ -1,8 +1,10 @@
 # Local Qwen integration and responsive controller
 
-Reviewed 2026-09-09. This is the first implementation of the proposed layered
-player. Factorio remained stopped throughout this work. Local inference is
-verified; live defensive survival and a rocket launch are not.
+Reviewed 2026-09-09. This report preserves the initial implementation and offline
+evaluation. Factorio remained stopped during that work. The subsequent
+[live defensive test](live-defense-001.md) validates one survived encounter and
+records substantially different live inference latency. Rocket capability is
+still unverified.
 
 ## Local model setup
 
@@ -86,8 +88,8 @@ real Factorio polling latency or demonstrate survival for 60 wall-clock seconds.
 ## Experimental tick-local reflex: source 0.4.0
 
 The new fixed `guard` operation enables an optional early-game bullet-defense
-routine. It is off by default. The source has not been installed in the Steam
-client or validated in a live encounter.
+routine. It is off by default. It was subsequently installed and tested in the
+single [live encounter](live-defense-001.md); the limitations below still apply.
 
 - Checks nearby currently visible enemies every three ticks; a damage event
   requests a check on the next tick. Critical health also interrupts production.
@@ -111,10 +113,10 @@ world. It is not a real combat or sub-100-ms performance measurement.
 
 ## What must happen next
 
-Review the source change, then validate normal firing and ammunition consumption
-in Factorio before relying on it. Measure encounter outcomes and tick/wall
-response time with the planner delayed. Improve escape behavior from those
-results. Only then connect validated construction skills to model task choices.
+Normal firing, ammunition consumption and one survived encounter now have live
+evidence. Broaden encounter coverage and measure response against independent
+enemy-appearance timestamps. Improve escape behavior from those results, then
+connect validated construction skills to model task choices.
 Full factory scheduling, demonstrations, reinforcement-learning updates,
 generalization evaluation, oil/later science and rocket capability remain future
-work. The user-requested stopped game and its failed checkpoint are preserved.
+work. The original failed checkpoint is preserved alongside the later practice.
