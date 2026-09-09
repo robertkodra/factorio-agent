@@ -13,6 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          # Audit the submitted source history, not GitHub's synthetic PR merge
+          # metadata (whose generated identity may violate the publication rule).
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Install optional MCP dependencies
