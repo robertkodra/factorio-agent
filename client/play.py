@@ -70,7 +70,7 @@ def milestone(name, detail=None):
     return entry
 
 
-def walk(x,y):return dict(type='walk',x=x,y=y)
+def walk(x,y,tolerance=0.35):return dict(type='walk',x=x,y=y,tolerance=tolerance)
 def mine(name,x,y,count=1,item=None):
     a=dict(type='mine',entity=name,x=x,y=y,count=count,timeout=max(600,count*180+300))
     if item:a['item']=item

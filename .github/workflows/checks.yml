@@ -19,6 +19,8 @@ jobs:
         run: |
           python3 -m venv .venv
           .venv/bin/python -m pip install -r requirements-mcp.txt
+      - name: Install Lua for navigation trace tests
+        run: sudo apt-get update && sudo apt-get install -y lua5.2
       - name: Unit tests including MCP stdio and RCON recovery
         run: .venv/bin/python -m unittest discover -s tests -v
       - name: Standard-library client tests

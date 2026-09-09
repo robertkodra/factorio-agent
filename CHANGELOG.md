@@ -1,5 +1,12 @@
 # Changes
 
+## Enemy-enabled learning and controller 0.3.2 — 2026-09-09
+
+- Added a sourced strategy playbook and research/defense budgets, with explicit limits for old speedrun guides and version-specific recipes.
+- A fresh development attempt established burner production, steam power, two labs, Automation, Gun turret and one turret with ten magazines. The [learning report](knowledge/learning-001.md) preserves two cancelled/five failed batches, three controller upgrades, pauses and recovery. Automated science and live combat remain pending.
+- Fixed native crafting progression through player ownership, bounded navigation oscillation, and added charted water/pollution observations, local placement checks and explicit character/turret ammo inventories. Ordered craft budgeting accounts for the cost of new crafts even when a product already exists.
+- All 36 unit tests and the isolated historical reload/MCP check passed. A current six-tool live sample measured 16.90 ms median engineer observations and 33.43 ms placement checks; 635 logged benchmark calls had no errors. These are local response measurements, not autonomous gameplay or frame-pacing results.
+
 ## Live responsiveness and batch validation — 2026-09-09
 
 - Tested the Steam client against a fresh 2.0.77 map: the 29-action conveyor opening completed in 7,504 ticks, with 12 consecutive belt-placement ticks and normal crafting/walking overlap. Twenty moving-job cancellations and a live MCP reconnect passed.

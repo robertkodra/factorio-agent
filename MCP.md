@@ -1,6 +1,6 @@
 # Agent connection through MCP
 
-The optional stdio server exposes the 13 fixed controller operations to MCP
+The optional stdio server exposes the 15 fixed controller operations to MCP
 clients. It uses the [official Python SDK](https://github.com/modelcontextprotocol/python-sdk)
 and validates calls against the same JSON Schemas it advertises. The original
 RCON clients still use only the Python standard library.
@@ -49,6 +49,7 @@ console, or Lua arguments.
 | `hello` | Verify controller version and operations before playing |
 | `bind`, `release` | Take control of an existing connected engineer or return it to the viewer |
 | `observe`, `scan`, `inspect` | Read engineer state and charted/reachable surroundings |
+| `survey`, `placement` | Read nearby charted water/pollution and local normal-placement preflight (controller 0.3.0+) |
 | `factory`, `research_state` | Inspect production and completed research |
 | `submit` | Enqueue one bounded batch and return immediately |
 | `status`, `cancel` | Track or stop the active job without waiting for its planned duration |
@@ -72,6 +73,34 @@ all actual gameplay conditions. Unknown fields, invalid bounds, nonfinite
 numbers, invalid action types, and oversized batches are rejected before RCON.
 Optional fields should be omitted rather than set to `null`.
 
+Controller 0.3.0 adds `inventory: "ammo"` for normal transfers to/from an
+ammunition turret, plus ammunition contents in its factory snapshot. It does not
+add shooting, equipment or repair actions. `placement` applies to a building
+with an identically named placement item, within ten tiles of the engineer; it
+checks the current stance, reach and collision, without reserving an item or
+proving power coverage. `survey` never charts new chunks. A water query returns
+at most 100 nearest water tiles and reports the total before truncation.
+Factorio's character placement check returns false while the simulation is
+explicitly paused. Check pause state and perform placement preflight during a
+recorded running interval; a false result while paused does not prove collision.
+
+Controller 0.3.1 queues crafts through the owning player and retains ownership
+after completion. Native player-crafted events are recorded, and `research_state`
+also lists currently enabled recipe names. A fresh lab craft must actually unlock
+red science; recipe costs or a lab in inventory are insufficient evidence.
+
+Controller 0.3.2 exposes the engineer's ammunition slots as `observe.ammo`.
+For `put` and `take`, `player_inventory: "ammo"` selects those slots as source
+or destination; the default remains `"main"`. This is separate from
+`inventory: "ammo"`, which selects the turret's inventory. Native crafting can
+put magazines into equipped ammunition slots, so inspect both before budgeting
+a transfer. The game still checks reach, item count and destination capacity.
+
+A walking job now requests at most two recovery paths for lack of measurable
+progress towards its current waypoint. Movement stops during path requests.
+This bounds oscillation; the planner must still select a reachable service
+position or choose an ordinary mining action to clear an obstruction.
+
 ## Recovery and limits
 
 - `submit` does not wait for the batch to finish. `status` and `cancel` share
@@ -93,6 +122,10 @@ Optional fields should be omitted rather than set to `null`.
   clients must record evidence privately and account for missing old events.
 - A successful `save` call acknowledges a request. Verify the checkpoint file
   and its hash separately. It does not prove a milestone or fresh-map provenance.
+- If a reload reports `no_bound_character`, connect the viewer, bind its existing
+  engineer and compare against the checkpoint state before continuing. The
+  learning run required this after a controller upgrade; automatic recovery of
+  a player-owned character is not yet established.
 
 The [live responsiveness report](knowledge/responsiveness-001.md) records a fresh
 29-action conveyor sequence, observation/cancellation timings, reconnect behavior,

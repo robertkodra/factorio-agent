@@ -18,6 +18,8 @@ from mcp import Client
 from mcp.client.stdio import StdioServerParameters
 
 from client.agent import Agent, ROOT
+from client.server import MOD_VERSION
+from client.tool_schemas import TOOLS
 
 
 def stats(values):
@@ -63,7 +65,9 @@ class Benchmark:
         assert not before['paused'], 'Resume the game before measuring normal tick scheduling'
         with Agent() as direct:
             for name, args in [('status', {}), ('observe', {}),
-                               ('scan', dict(radius=64, limit=20)), ('factory', {})]:
+                               ('scan', dict(radius=64, limit=20)), ('factory', {}),
+                               ('survey', dict(radius=128, limit=100)),
+                               ('placement', dict(entity='stone-furnace', **before['position']))]:
                 for _ in range(5):
                     await self.call(client, name, args)
                     direct.request(name, **args)
@@ -160,9 +164,9 @@ class Benchmark:
         async with Client(self.params,mode='legacy') as client:
             startup_ms=(time.perf_counter()-started)*1000
             tools=await client.list_tools()
-            assert len(tools.tools)==13
+            assert {tool.name for tool in tools.tools}==set(TOOLS)
             before=await self.call(client,'observe')
-            assert before['mods']=={'base':'2.0.77','codex-controller':'0.2.0'}
+            assert before['mods']=={'base':'2.0.77','codex-controller':MOD_VERSION}
             assert before['speed']==1
             await self.call(client,'pause',dict(value=False))
             if args.phase=='reads':
@@ -176,7 +180,8 @@ class Benchmark:
                          samples={k:stats(v) for k,v in self.samples.items()},detail=detail,paused=paused,
                          source_sha256={str(path.relative_to(ROOT)):hashlib.sha256(path.read_bytes()).hexdigest()
                                         for path in (ROOT/'client/mcp_server.py', ROOT/'client/tool_schemas.py',
-                                                     ROOT/'mod/codex-controller/control.lua')})
+                                                     ROOT/'mod/codex-controller/control.lua',
+                                                     ROOT/'mod/codex-controller/navigation.lua')})
             (self.folder/'result.json').write_text(json.dumps(summary,indent=2)+'\n')
             print(json.dumps(dict(phase=args.phase,startup_ms=startup_ms,
                                  samples=summary['samples'],result_file=str(self.folder/'result.json'))),flush=True)

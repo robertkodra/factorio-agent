@@ -1,4 +1,4 @@
-"""Bounded MCP tool contracts for controller 0.2.0, with no generic operation tool.
+"""Bounded MCP tool contracts for controller 0.3.2, with no generic operation tool.
 
 These schemas restrict shape and bounds. The mod remains authoritative for
 unlocks, item costs, reach, collision, ownership, and all gameplay preconditions.
@@ -22,7 +22,8 @@ NAME = dict(type="string", minLength=1, maxLength=120, pattern=r"^[A-Za-z0-9_-]+
 COORD = number(-1000000, 1000000)
 COUNT = integer(1, 100000)
 TICKS = integer(1, 216000)
-INVENTORY = dict(type="string", enum=["fuel", "source", "result", "chest", "input", "output"])
+INVENTORY = dict(type="string", enum=["fuel", "source", "result", "chest", "input", "output", "ammo"])
+PLAYER_INVENTORY = dict(type="string", enum=["main", "ammo"])
 DIRECTION = dict(type="string", enum=[
     "north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"])
 POSITION = dict(x=COORD, y=COORD)
@@ -40,9 +41,9 @@ ACTIONS = [
     action("craft", dict(recipe=NAME, count=COUNT), ("recipe", "count")),
     action("await_craft"),
     action("place", dict(**ENTITY, item=NAME, direction=DIRECTION), ("x", "y", "entity")),
-    action("put", dict(**ENTITY, item=NAME, count=COUNT, inventory=INVENTORY),
+    action("put", dict(**ENTITY, item=NAME, count=COUNT, inventory=INVENTORY, player_inventory=PLAYER_INVENTORY),
            ("x", "y", "item", "count")),
-    action("take", dict(**ENTITY, item=NAME, count=COUNT, inventory=INVENTORY),
+    action("take", dict(**ENTITY, item=NAME, count=COUNT, inventory=INVENTORY, player_inventory=PLAYER_INVENTORY),
            ("x", "y", "item", "count")),
     action("wait_inventory", dict(**ENTITY, item=NAME, count=COUNT, inventory=INVENTORY),
            ("item", "count"), dependentRequired={
@@ -60,13 +61,22 @@ TOOLS = {
     "bind": (obj(dict(player=integer(1, 65535))),
              "Bind a connected player's existing engineer under normal game rules. Default player is 1."),
     "release": (obj(), "Return the engineer to the viewer and cancel the remaining active batch."),
-    "observe": (obj(), "Read engineer state, inventory, crafting, pause state, and current job."),
+    "observe": (obj(), "Read engineer state, main and ammunition inventories, crafting, pause state, and current job."),
     "scan": (obj(dict(name=NAME, type=NAME, radius=number(1, 128), limit=integer(1, 100))),
              "Scan charted surroundings only. Defaults: radius 64, limit 20. Optional name/type filters."),
     "inspect": (obj(ENTITY, ("x", "y")),
                 "Inspect an entity within engineer reach, optionally selected by exact entity name."),
+    "survey": (obj(dict(radius=number(1, 128), limit=integer(1, 100))),
+               "Read nearby charted water tiles and chunk pollution. Defaults: radius 64, water limit 100. "
+               "Tile coordinates are top-left corners; chunk coordinates represent 32x32 tiles. "
+               "Does not reveal unexplored terrain or establish that no distant enemies exist."),
+    "placement": (obj(dict(**ENTITY, direction=DIRECTION), ("x", "y", "entity")),
+                  "Read normal character placement preflight within 10 tiles on charted terrain. "
+                  "Checks current stance and collisions; does not place or reserve an item. "
+                  "Run while unpaused: paused checks return false even at valid sites. "
+                  "Does not prove power, fluid or inserter connectivity. Recheck at execution."),
     "factory": (obj(), "Read the player's factory, machine inventories, production, and research."),
-    "research_state": (obj(), "Read completed technologies and supported production counters."),
+    "research_state": (obj(), "Read completed technologies, enabled recipe names, and supported production counters."),
     "submit": (obj(dict(id=NAME, actions=dict(type="array", minItems=1, maxItems=512,
                                              items=dict(oneOf=ACTIONS))), ("id", "actions")),
                "Submit one item-funded, tick-executed batch and return immediately. One active job. "
@@ -87,4 +97,4 @@ TOOLS = {
              "Request a private server checkpoint by simple name. May overwrite the same name. "
              "Acknowledgement proves a save request, not completed file creation or a milestone."),
 }
-READ_ONLY = frozenset({"hello", "observe", "scan", "inspect", "factory", "research_state", "status"})
+READ_ONLY = frozenset({"hello", "observe", "scan", "survey", "placement", "inspect", "factory", "research_state", "status"})

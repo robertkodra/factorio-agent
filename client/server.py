@@ -39,6 +39,11 @@ def setup():
     mods = controller_mod_list()
     (RUNTIME / "mods/mod-list.json").write_text(json.dumps(mods, indent=2))
     link = RUNTIME / "mods" / MOD_DIRECTORY
+    # Old managed symlinks point at the same source; leaving both after a version
+    # bump makes Factorio see duplicate copies of the new version.
+    for previous_link in (RUNTIME / "mods").glob("codex-controller_*"):
+        if previous_link != link and previous_link.is_symlink() and previous_link.resolve() == ROOT / "mod/codex-controller":
+            previous_link.unlink()
     if not link.exists():
         link.symlink_to(ROOT / "mod/codex-controller", target_is_directory=True)
     settings = {"name": "Codex Performance Test", "description": "Local vanilla tick controller benchmark", "max_players": 1, "visibility": {"public": False, "lan": False}, "require_user_verification": False, "allow_commands": "false", "autosave_interval": 0, "auto_pause": True, "auto_pause_when_players_connect": False, "minimum_latency_in_ticks": 0, "max_heartbeats_per_second": 60, "only_admins_can_pause_the_game": True}

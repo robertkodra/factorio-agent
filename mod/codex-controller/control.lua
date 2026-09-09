@@ -1,9 +1,10 @@
-local VERSION = '0.2.0'
+local VERSION = '0.3.2'
+local navigation = require('navigation')
 local resumed = false
 local DIR = {north=0,northeast=2,east=4,southeast=6,south=8,southwest=10,west=12,northwest=14}
-local INV = {fuel=defines.inventory.fuel,source=defines.inventory.furnace_source,result=defines.inventory.furnace_result,chest=defines.inventory.chest,input=defines.inventory.assembling_machine_input,output=defines.inventory.assembling_machine_output}
+local INV = {fuel=defines.inventory.fuel,source=defines.inventory.furnace_source,result=defines.inventory.furnace_result,chest=defines.inventory.chest,input=defines.inventory.assembling_machine_input,output=defines.inventory.assembling_machine_output,ammo=defines.inventory.turret_ammo}
 local TYPES = {walk=true,mine=true,craft=true,await_craft=true,place=true,put=true,take=true,wait_inventory=true,research=true,set_recipe=true,rotate=true,wait_ticks=true}
-local FIELDS = {type=true,x=true,y=true,count=true,item=true,recipe=true,entity=true,direction=true,inventory=true,tolerance=true,timeout=true,ticks=true,technology=true}
+local FIELDS = {type=true,x=true,y=true,count=true,item=true,recipe=true,entity=true,direction=true,inventory=true,player_inventory=true,tolerance=true,timeout=true,ticks=true,technology=true}
 local function state()
   storage.agent = storage.agent or {version=VERSION,jobs={},order={},events={},sequence=0,follow=true,pauses=0}
   return storage.agent
@@ -60,6 +61,7 @@ local function close_to(c,e)
   if not c.can_reach_entity(e) then error('out_of_reach') end
 end
 local function inventory(e,name)
+  if name=='ammo' and e.type~='ammo-turret' then error('ammo_requires_ammo_turret') end
   local inv=e.get_inventory(INV[name or 'chest'])
   if not inv then error('invalid_inventory_for_entity') end
   return inv
@@ -88,6 +90,7 @@ local function validate(actions)
       if not named(a.item) or not prototypes.item[a.item] then error('invalid_item') end
       if a.inventory and not INV[a.inventory] then error('invalid_inventory') end
     end
+    if a.player_inventory~=nil and ((a.type~='put' and a.type~='take') or (a.player_inventory~='main' and a.player_inventory~='ammo')) then error('invalid_player_inventory') end
     if a.type=='craft' or a.type=='set_recipe' then
       if not named(a.recipe) or not prototypes.recipe[a.recipe] then error('invalid_recipe') end
     end
@@ -114,7 +117,8 @@ local function fingerprint(actions)
   return '['..table.concat(parts,',')..']'
 end
 local function request_path(c,a,r)
-  r.path=nil;r.ready=false;r.segment=1
+  c.walking_state={walking=false}
+  r.path=nil;r.ready=false;r.segment=1;r.progress_tick=nil;r.last_move_tick=game.tick;r.last_position=c.position
   r.path_id=c.surface.request_path{bounding_box=c.prototype.collision_box,collision_mask=c.prototype.collision_mask,start=c.position,goal={a.x,a.y},force=c.force,radius=a.tolerance,entity_to_ignore=c,pathfind_flags={prefer_straight_paths=true,no_break=true}}
   if not r.path_id then error('path_request_failed') end
 end
@@ -142,8 +146,10 @@ local function start_step(c,j,a)
       owner.set_controller{type=defines.controllers.character,character=c}
       event('craft_player_attached')
     end
-    if c.get_craftable_count(a.recipe)<a.count then error('insufficient_materials') end
-    local n=c.begin_crafting{recipe=a.recipe,count=a.count}
+    -- Use the player adapter, not LuaEntity's character adapter, so normal
+    -- player crafting events and technology triggers are processed by the game.
+    if c.player.get_craftable_count(a.recipe)<a.count then error('insufficient_materials') end
+    local n=c.player.begin_crafting{recipe=a.recipe,count=a.count}
     if n~=a.count then error('craft_queue_rejected') end
     next_step(j,{queued=n});return
   elseif a.type=='place' then
@@ -158,7 +164,7 @@ local function start_step(c,j,a)
     next_step(j,{entity=e.name,position=e.position});return
   elseif a.type=='put' or a.type=='take' then
     local e=entity_at(c,a);close_to(c,e)
-    local own=c.get_main_inventory();local other=inventory(e,a.inventory)
+    local own=a.player_inventory=='ammo' and c.get_inventory(defines.inventory.character_ammo) or c.get_main_inventory();local other=inventory(e,a.inventory)
     local src=a.type=='put' and own or other;local dst=a.type=='put' and other or own
     if src.get_item_count(a.item)<a.count then error('insufficient_items') end
     if dst.get_insertable_count(a.item)<a.count then error('insufficient_space') end
@@ -198,6 +204,13 @@ local function step(c,j,a,r)
       if near or (pos.x-q.x)*vx+(pos.y-q.y)*vy>=vx*vx+vy*vy then r.segment=r.segment+1 else break end
     end
     local t=r.segment<#r.path and r.path[r.segment+1].position or {x=a.x,y=a.y}
+    local distance=math.sqrt((t.x-pos.x)^2+(t.y-pos.y)^2)
+    if not navigation.progress(r,r.segment,distance,game.tick) then
+      if r.repaths>=2 then error('no_path_progress') end
+      r.repaths=r.repaths+1
+      event('navigation_repath',{index=j.index,reason='no_path_progress',attempt=r.repaths,position=pos})
+      request_path(c,a,r);return
+    end
     local angle=math.atan2(t.x-pos.x,pos.y-t.y)
     local dir=(math.floor(angle/(math.pi/4)+0.5)*2)%16
     c.walking_state={walking=true,direction=dir}
@@ -232,10 +245,8 @@ local function tick()
     return
   end
   local owner=game.get_player(s.owner)
-  if owner and c.player and c.crafting_queue_size==0 then
-    owner.character=nil;owner.set_controller{type=defines.controllers.spectator}
-    event('craft_player_detached')
-  end
+  -- Retain player ownership after crafting; detaching at an empty queue can
+  -- interfere with the engine's completion/trigger accounting.
   if owner and owner.connected and s.follow and owner.controller_type==defines.controllers.spectator then
     owner.teleport(c.position,c.surface) -- Camera only. Never teleports the engineer.
   end
@@ -282,7 +293,7 @@ local function job_status(j)
 end
 local function snapshot()
   local s=state();local c=actor();local owner=game.get_player(s.owner)
-  return {version=VERSION,tick=game.tick,speed=game.speed,paused=game.tick_paused,mods=script.active_mods,position=c.position,health=c.health,inventory=c.get_main_inventory().get_contents(),crafting=c.crafting_queue or {},walking=c.walking_state,mining=c.mining_state.mining,actor_unit=c.unit_number,actor_has_player=c.player~=nil,viewer_controller=owner and owner.controller_type,job=job_status(s.current and s.jobs[s.current]),sequence=s.sequence,pauses=s.pauses,policy='no-console-lua-v1'}
+  return {version=VERSION,tick=game.tick,speed=game.speed,paused=game.tick_paused,mods=script.active_mods,position=c.position,health=c.health,max_health=c.max_health,inventory=c.get_main_inventory().get_contents(),ammo=c.get_inventory(defines.inventory.character_ammo).get_contents(),crafting=c.crafting_queue or {},walking=c.walking_state,mining=c.mining_state.mining,actor_unit=c.unit_number,actor_has_player=c.player~=nil,viewer_controller=owner and owner.controller_type,job=job_status(s.current and s.jobs[s.current]),sequence=s.sequence,pauses=s.pauses,policy='no-console-lua-v1'}
 end
 local function factory_snapshot()
 local c=actor();local f=c.force;local s=c.surface;
@@ -292,8 +303,9 @@ for n,t in pairs(f.technologies)do if t.researched then table.insert(o.researche
 table.sort(o.researched);
 for _,e in pairs(s.find_entities_filtered{force=f})do
  local v={name=e.name,type=e.type,position=e.position,direction=e.direction,status=e.status,
- health=e.health,energy=e.energy,box=e.bounding_box};
+ health=e.health,max_health=e.max_health,energy=e.energy,box=e.bounding_box};
  local fuel=e.get_fuel_inventory();if fuel then v.fuel=fuel.get_contents()end;
+ if e.type=='ammo-turret' then v.ammo=e.get_inventory(defines.inventory.turret_ammo).get_contents()end;
  local input=nil;
  if e.type=='assembling-machine' then
   local recipe=e.get_recipe();v.recipe=recipe and recipe.name;
@@ -308,23 +320,25 @@ for _,e in pairs(s.find_entities_filtered{force=f})do
  table.insert(o.entities,v);
 end;
 local stats=f.get_item_production_statistics(s);
-for _,n in pairs({'iron-plate','copper-plate','automation-science-pack','logistic-science-pack',
+for _,n in pairs({'lab','firearm-magazine','iron-plate','copper-plate','automation-science-pack','logistic-science-pack',
 'military-science-pack','chemical-science-pack','construction-robot','logistic-robot'})do
  o.produced[n]=stats.get_input_count(n);end;
 return o
 end
 local function research_snapshot()
-local c=actor();local f=c.force;local out={tick=game.tick,researched={},produced={}};
+local c=actor();local f=c.force;local out={tick=game.tick,researched={},produced={},enabled_recipes={}};
 for n,t in pairs(f.technologies)do if t.researched then out.researched[#out.researched+1]=n end end;
 table.sort(out.researched);
+for n,r in pairs(f.recipes)do if r.enabled then out.enabled_recipes[#out.enabled_recipes+1]=n end end;
+table.sort(out.enabled_recipes);
 local stats=f.get_item_production_statistics(c.surface);
-for _,n in pairs({'iron-plate','copper-plate','automation-science-pack','logistic-science-pack','military-science-pack','chemical-science-pack','construction-robot','logistic-robot'})do out.produced[n]=stats.get_input_count(n)end;
+for _,n in pairs({'lab','firearm-magazine','iron-plate','copper-plate','automation-science-pack','logistic-science-pack','military-science-pack','chemical-science-pack','construction-robot','logistic-robot'})do out.produced[n]=stats.get_input_count(n)end;
 return out
 end
 local function handle(req)
   if type(req)~='table' then error('request_must_be_object') end
   local s=state();local op=req.op
-  if op=='hello' then return {version=VERSION,commands={'bind','release','submit','status','observe','scan','inspect','factory','research_state','cancel','pause','save'},actions=TYPES} end
+  if op=='hello' then return {version=VERSION,commands={'bind','release','submit','status','observe','scan','survey','placement','inspect','factory','research_state','cancel','pause','save'},actions=TYPES} end
   if op=='bind' then
     if s.character and s.character.valid then check_rules(game.get_player(s.owner));return snapshot() end
     local p=game.get_player(req.player or 1)
@@ -378,6 +392,45 @@ local function handle(req)
   elseif op=='save' then
     if not named(req.name) then error('invalid_save_name') end
     game.server_save(req.name);event('save_requested',{name=req.name});return {requested=req.name,tick=game.tick}
+  elseif op=='survey' then
+    local c=actor();local radius=req.radius or 64;local limit=req.limit or 100
+    if type(radius)~='number' or radius~=radius or radius<1 or radius>128 then error('radius_must_be_1_to_128') end
+    if not integer(limit,1,100) then error('limit_must_be_1_to_100') end
+    local water={};local pollution={}
+    local function charted(x,y) return c.force.is_chunk_charted(c.surface,{math.floor(x/32),math.floor(y/32)}) end
+    for _,t in pairs(c.surface.find_tiles_filtered{position=c.position,radius=radius,collision_mask='water_tile'}) do
+      local p=t.position
+      if charted(p.x,p.y) then water[#water+1]={name=t.name,x=p.x,y=p.y,distance=math.sqrt((p.x+0.5-c.position.x)^2+(p.y+0.5-c.position.y)^2)} end
+    end
+    table.sort(water,function(a,b) if a.distance~=b.distance then return a.distance<b.distance end;if a.x~=b.x then return a.x<b.x end;return a.y<b.y end)
+    local total=#water;while #water>limit do water[#water]=nil end
+    for x=math.floor((c.position.x-radius)/32),math.floor((c.position.x+radius)/32) do
+      for y=math.floor((c.position.y-radius)/32),math.floor((c.position.y+radius)/32) do
+        local px=math.max(x*32,math.min(c.position.x,x*32+32));local py=math.max(y*32,math.min(c.position.y,y*32+32))
+        if (px-c.position.x)^2+(py-c.position.y)^2<=radius^2 and c.force.is_chunk_charted(c.surface,{x,y}) then
+          pollution[#pollution+1]={x=x,y=y,amount=c.surface.get_pollution({x*32,y*32})}
+        end
+      end
+    end
+    return {tick=game.tick,water=water,water_total=total,pollution=pollution,radius=radius,scope='charted_chunks_near_engineer'}
+  elseif op=='placement' then
+    local c=actor()
+    if not coordinate(req.x) or not coordinate(req.y) or not named(req.entity) then error('invalid_placement_query') end
+    local p=prototypes.entity[req.entity];local item=prototypes.item[req.entity]
+    if not p or not item or not item.place_result or item.place_result.name~=req.entity then error('placement_query_requires_named_building_item') end
+    local dir=DIR[req.direction or 'north'];if not dir then error('invalid_direction') end
+    -- Keep preflight local, including conservative coverage of the footprint and
+    -- adjacent tile rules. Never query hidden terrain through a collision result.
+    if (req.x-c.position.x)^2+(req.y-c.position.y)^2>100 then error('placement_query_must_be_local') end
+    local b=p.collision_box
+    local extent=math.ceil(math.max(math.abs(b.left_top.x),math.abs(b.left_top.y),math.abs(b.right_bottom.x),math.abs(b.right_bottom.y),p.tile_width/2,p.tile_height/2))+4
+    if extent>32 then error('placement_footprint_too_large') end
+    for x=math.floor((req.x-extent)/32),math.floor((req.x+extent)/32) do
+      for y=math.floor((req.y-extent)/32),math.floor((req.y+extent)/32) do
+        if not c.force.is_chunk_charted(c.surface,{x,y}) then error('placement_footprint_not_charted') end
+      end
+    end
+    return {tick=game.tick,can_place=c.can_place_entity{name=req.entity,position={req.x,req.y},direction=dir},item_count=c.get_item_count(req.entity),position={x=req.x,y=req.y},entity=req.entity,direction=dir}
   elseif op=='scan' then
     local c=actor();local radius=req.radius or 64
     if type(radius)~='number' or radius<1 or radius>128 then error('radius_must_be_1_to_128') end
@@ -386,7 +439,7 @@ local function handle(req)
     local out={}
     for _,e in ipairs(es) do
       if e~=c and c.force.is_chunk_charted(c.surface,{math.floor(e.position.x/32),math.floor(e.position.y/32)}) then
-        out[#out+1]={name=e.name,type=e.type,x=e.position.x,y=e.position.y,amount=e.type=='resource' and e.amount or nil,distance=math.sqrt((e.position.x-c.position.x)^2+(e.position.y-c.position.y)^2)}
+        out[#out+1]={name=e.name,type=e.type,force=e.force.name,health=e.health,x=e.position.x,y=e.position.y,amount=e.type=='resource' and e.amount or nil,distance=math.sqrt((e.position.x-c.position.x)^2+(e.position.y-c.position.y)^2)}
       end
     end
     table.sort(out,function(a,b)return a.distance<b.distance end)
@@ -395,7 +448,7 @@ local function handle(req)
   elseif op=='inspect' then
     local c=actor();if not coordinate(req.x) or not coordinate(req.y) then error('invalid_coordinates') end
     local e=entity_at(c,req);close_to(c,e)
-    local invs={};for name,idx in pairs(INV) do local inv=e.get_inventory(idx);if inv then invs[name]=inv.get_contents() end end
+    local invs={};for name,idx in pairs(INV) do if name~='ammo' or e.type=='ammo-turret' then local inv=e.get_inventory(idx);if inv then invs[name]=inv.get_contents() end end end
     local out={name=e.name,position=e.position,direction=e.direction,status=e.status,inventories=invs}
     if e.type=='transport-belt' then out.lines={e.get_transport_line(1).get_contents(),e.get_transport_line(2).get_contents()} end
     if e.type=='mining-drill' then out.drop_position=e.drop_position end
@@ -417,6 +470,11 @@ script.on_init(function()state()end)
 script.on_configuration_changed(function()state().version=VERSION end)
 script.on_load(function()resumed=true end)
 script.on_event(defines.events.on_tick,tick)
+script.on_event(defines.events.on_player_crafted_item,function(e)
+  if e.player_index==state().owner then
+    event('player_crafted',{recipe=e.recipe.name,item=e.item_stack.name,count=e.item_stack.count})
+  end
+end)
 script.on_event(defines.events.on_script_path_request_finished,function(e)
   local s=state();local j=s.current and s.jobs[s.current];local r=j and j.runtime
   if r and r.path_id==e.id then r.path=e.path;r.ready=true;r.busy=e.try_again_later end

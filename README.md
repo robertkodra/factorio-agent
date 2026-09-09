@@ -2,14 +2,15 @@
 
 A local, tick-driven controller for Factorio **2.0.77**, tested on macOS with Steam. The planner submits batches; the game executes ordinary walking, mining, crafting, item-funded construction, transfers, and research on its own ticks. The direct Python clients use only the standard library.
 
-Controller **0.2.0** uses a fixed `/codex-agent` JSON interface over persistent RCON. An optional [MCP stdio facade](MCP.md) exposes its 13 fixed operations with validated schemas (Python 3.10+ and separate dependencies). Base gameplay is enabled, with Space Age, Quality, and Elevated Rails disabled. The control-only mod changes no prototypes or recipes.
+Controller **0.3.2** uses a fixed `/codex-agent` JSON interface over persistent RCON. An optional [MCP stdio facade](MCP.md) exposes its 15 fixed operations with validated schemas (Python 3.10+ and separate dependencies). Base gameplay is enabled, with Space Age, Quality, and Elevated Rails disabled. The control-only mod changes no prototypes or recipes.
 
-This is an experimental **tool-assisted vanilla-mechanics benchmark**. It has demonstrated conveyors, electricity, and red/green science production historically. A [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) now passes under the current no-console-Lua policy. Fresh red/green production, green-consuming research, robotics, and a rocket launch remain pending. No human speedrun eligibility or record is claimed.
+This is an experimental **tool-assisted vanilla-mechanics benchmark**. It has demonstrated conveyors, electricity, and red/green science production historically. A [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) now passes under the current no-console-Lua policy. A separate [enemy-enabled learning attempt](knowledge/learning-001.md) completed Automation and Gun turret and verified one loaded turret. Fresh automated red/green production, green-consuming research, robotics, and a rocket launch remain pending. No human speedrun eligibility or record is claimed.
 
 ## Start here
 
 - [Setup and continuation](HANDOFF.md)
 - [Connect an agent through MCP](MCP.md)
+- [Gameplay strategy](knowledge/strategy.md) and [learning results](knowledge/learning-001.md)
 - [Live responsiveness measurements](knowledge/responsiveness-001.md)
 - [No-cheats policy](POLICY.md)
 - [Progression and MCP roadmap](ROADMAP.md)
@@ -33,7 +34,7 @@ The public repository contains reviewed source, tests, plans, static recipe data
 
 These are summaries of private historical evidence. Conveyor timings start at submission and exclude preparation and model reasoning beforehand. The science run includes planning, failures, recovery, and debugging. It did **not** complete research consuming green packs. See the [report](knowledge/dry-run-001.md) for corrected milestones and limitations.
 
-Authoritative movement was measured; visual smoothness was not measured frame by frame. The viewer usually follows in spectator mode, but remains attached during hand crafting so normal craft statistics and research triggers work. The engineer walks normally; only the spectator camera is moved by script.
+Authoritative movement was measured; visual smoothness was not measured frame by frame. The viewer initially follows in spectator mode; native hand crafting attaches it to the engineer and retains ownership so normal craft statistics and research triggers work. The engineer walks normally; only the spectator camera is moved by script.
 
 ## Running a plan
 
@@ -65,7 +66,7 @@ After an uncertain transport failure, reconnect and inspect the same job ID. The
 
 ## Interface and limits
 
-Fixed operations: `hello`, `bind`, `release`, `observe`, `scan`, `inspect`, `factory`, `research_state`, `submit`, `status`, `cancel`, `pause`, `save`.
+Fixed operations: `hello`, `bind`, `release`, `observe`, `scan`, `survey`, `placement`, `inspect`, `factory`, `research_state`, `submit`, `status`, `cancel`, `pause`, `save`.
 
 Actions: `walk`, `mine`, `craft`, `await_craft`, `place`, `put`, `take`, `wait_inventory`, `research`, `set_recipe`, `rotate`, `wait_ticks`.
 
@@ -76,7 +77,7 @@ Actions: `walk`, `mine`, `craft`, `await_craft`, `place`, `put`, `take`, `wait_i
 - Normal speed, cheat mode, and the allowed mod set are checked during binding, submission, and active execution. RCON is trusted local administration, not an adversarial sandbox.
 - Job state and bounded events persist in saves. There are limits of 256 stored jobs and 2,048 in-save events; status supports an event cursor. Raw event files remain in ignored runtime storage.
 
-Navigation can oscillate around trees and poles. Construction needs fuller footprint/power checks, inventory aliases need later-game coverage, and automated supply scheduling remains incomplete. Oil, robotics, and rocket actions need their own live validation. Read the [next-run notes](knowledge/next-run.md) before longer attempts.
+Navigation now detects lack of path progress and stops after bounded retries; it still needs automatic selection of reachable service positions. Local placement checks do not prove power/fluid/inserter connections. Inventory aliases need later-game coverage, and automated supply scheduling remains incomplete. Oil, robotics, and rocket actions need their own live validation. Start with the [strategy playbook](knowledge/strategy.md) and [next-run notes](knowledge/next-run.md) before longer attempts.
 
 ## Local verification and planning
 

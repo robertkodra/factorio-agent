@@ -21,11 +21,15 @@ The live prototype reports burner mining speed 0.25 and iron-ore mining time 1 s
 
 ## Controller work still needed
 
-- Detect lack of progress along a path, including oscillation. The current watchdog detects an unmoving engineer, but small back-and-forth motion can postpone recovery until the whole step times out.
+- Controller 0.3.0 introduced a waypoint-progress watchdog, verified against a blocked tree goal. It terminates bounded retries; it does not yet select a better service position automatically.
 - Let service actions choose a reachable stance within the actual action radius instead of demanding unnecessary exact waypoints.
 - Make placement preflight include the engineer's intended final position, power coverage, and neighboring footprints.
 - Generalize inventory names for laboratories, chemistry, oil, rockets, and other later-game machinery. The current aliases share numeric inventory IDs with some machines; that should become an explicit per-entity mapping.
 - Add threshold-driven fuel/material collection and research scheduling. Keep mutation IDs and progress logs so an interrupted planner can resume without repeating completed steps.
+- Validate live recipe unlocks before dependent crafts. The fresh learning attempt exposed a lab-trigger failure that historical reload checks missed; 0.3.1 queues through the player, retains ownership and records native crafting events.
+- Use `craft_budget` for additional crafts. The older `budget` computes desired final stock and therefore credits an existing lab; that is not a budget for crafting another lab.
+- Run local placement preflight while the simulation is running. Factorio returns false for the character's placement check while explicitly paused, even at a clear, otherwise valid site.
+- Inspect both main and equipped ammunition inventories before loading turrets. Controller 0.3.2 supports explicit `player_inventory: "ammo"`; crafting magazines can place them in those slots automatically.
 - Validate oil, blue science, modules, robotics, and rocket production in subsequent runs. None of those stages is proven by this early-game test.
 
 ## Scope of the budgeting helper

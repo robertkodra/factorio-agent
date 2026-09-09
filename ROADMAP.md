@@ -6,8 +6,8 @@ The next milestone is a clean, reproducible early-game run under `POLICY.md`, fo
 
 | ID | Goal | Completion evidence | Current evidence |
 |---|---|---|---|
-| G0 | Establish a clean baseline | Fresh map; initial state and version/seed/mod hashes; no console Lua | Recorded for the fresh responsiveness test; initialize a separate progression attempt |
-| G1 | Stable early factory | Powered red/green production, supplied labs, enough fuel/input buffers | Demonstrated in the historical dry run; repeat cleanly |
+| G0 | Establish a clean baseline | Fresh map; initial state and version/seed/mod hashes; no console Lua | Recorded for responsiveness and the separate learning attempt; the latter records controller upgrades and recovery |
+| G1 | Stable early factory | Powered red/green production, supplied labs, enough fuel/input buffers | Historical only; fresh learning run has powered labs with hand-crafted red science |
 | G2 | First green-consuming research | `military-2` completed by labs after Military, Steel processing, and green-science prerequisites | Pending; producing green packs alone does not pass |
 | G3 | Military science and research | Military-science recipe unlocked; packs produced; a technology requiring military packs completed through labs | Pending |
 | G4 | Oil and blue science | Oil processing chain supplies blue packs; blue-consuming research completed | Pending |
@@ -32,13 +32,13 @@ Start with one local MCP server around the existing controller. Multiple indepen
 | Session | Status, cancellation, explicit pause/resume, checkpoint, recovery | Fixed commands exist; portable orchestration and broader recovery tests pending |
 | Performance | Timing, throughput, starvation/fuel/power diagnostics | Existing logs; sustained throughput and bottleneck metrics pending |
 
-The optional [MCP stdio facade](MCP.md) now wraps the fixed RCON client using the official Python SDK. It exposes 13 schema-validated tools and persistent RCON transport, with no generic Lua, shell, or raw-console tool. Submission returns immediately; status/cancel operate while a tick job is active. Uncertain mutations must be reconciled by job ID instead of replayed. SDK/stdio/socket tests, an isolated historical-save compatibility check, and a [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) pass. Fresh red/green production remains pending. The archived upstream FactorioMCP exposed unrestricted Lua and remains unsuitable for new-policy runs.
+The optional [MCP stdio facade](MCP.md) wraps the fixed RCON client using the official Python SDK. It exposes 15 schema-validated tools and persistent RCON transport, including local placement and charted water/pollution observations, with no generic Lua, shell, or raw-console tool. Submission returns immediately; status/cancel operate while a tick job is active. Uncertain mutations must be reconciled by job ID instead of replayed. SDK/stdio/socket tests, historical-save compatibility and a [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) pass. Fresh automated red/green production remains pending. The archived upstream FactorioMCP exposed unrestricted Lua and remains unsuitable for new-policy runs.
 
 ## Next implementation order
 
-1. **Implemented:** MCP facade for the 0.2.0 fixed operations, including initialization/tool listing, input validation, cancellation, reconnect, and no mutation replay. See [MCP.md](MCP.md) for setup and test scope.
-2. Fix navigation oscillation with measurable path progress and bounded recovery. Test trees, poles, belts, collision corners, and unreachable goals.
-3. Add complete footprint/power checks and entity-specific inventory access. Preserve real item/reach/collision checks in the game.
+1. **Implemented:** MCP facade through controller 0.3.2, including initialization/tool listing, input validation, cancellation, reconnect, and no mutation replay. See [MCP.md](MCP.md) for setup and test scope.
+2. **Partial:** measurable path-progress watchdog and bounded retries pass a live blocked-tree test. Add automatic reachable service positions and test more poles, belts, corners and unreachable targets.
+3. **Partial:** local normal-placement preflight and explicit turret ammo access exist. Add planning for power/fluid/inserter connections and complete entity-specific inventory mappings.
 4. Add fresh-run manifests and event-based goal evaluation; then repeat G0/G1 and complete G2.
 5. Extend oil/fluids, modules, robots, and silo operations only as those stages require them, with normal mechanics and stage-specific tests.
 
@@ -53,14 +53,14 @@ map, enemy, pause, and reload rules; no speed target is established yet.
 | Capability | Current state | Evidence needed before relying on it |
 |---|---|---|
 | Agent connection and bounded actions | MCP/RCON tested live; fresh conveyor sequence, cancellation, and reconnect pass | Repeat powered red/green production on a fresh map |
-| Navigation and construction | Obstacle oscillation and incomplete placement preflight remain | Tree/pole/corner recovery, unreachable-target termination, correct footprints and power coverage |
-| Economy and planning | Early material calculator and hand-authored batches | Automatic fuel/input reserves, concurrent production, bottleneck detection, recovery from starvation |
-| Version-specific knowledge | Static early solid-recipe catalog | Fixed live recipe/technology query and fluid/by-product planning |
+| Navigation and construction | Bounded progress watchdog; local placement preflight | Automatic reachable service positions, broader obstacle cases, power and fluid connection planning |
+| Economy and planning | Research dependencies, ordered crafting budgets and hand-authored batches | Automatic fuel/input reserves, concurrent production, bottleneck detection, recovery from starvation |
+| Version-specific knowledge | Static catalog plus live enabled-recipe names; sourced strategy playbook | Fixed live recipe/technology metadata and fluid/by-product planning |
 | Progress tracking and recovery | Saved job state and notebook helpers | Fresh-run manifests, checkpoint hashes, research-consumption events, resumable milestone planner |
 | Oil and later science | Unproven | Sustained oil/chemical production and actual lab consumption at each required tier |
 | Robots and construction | Ghost/robot controls not implemented | Item-funded ghost placement and observed normal robot construction |
 | Silo and launch | Silo inventory/launch operations not implemented | Narrow reviewed actions, real material consumption, actual rocket launch event, final checkpoint |
-| Enemy-enabled play | Combat/defense not demonstrated | Damage/threat observations, normal equipment/combat controls, automated ammunition/repair supply |
+| Enemy-enabled play | Charted enemy/pollution observations; one turret loaded live | Live defensive encounters, normal equipment/combat/repair controls, automated ammunition supply |
 
 For each fixed benchmark configuration, report completed attempts/total attempts,
 ticks to each verified milestone and launch, total wall time including planning,

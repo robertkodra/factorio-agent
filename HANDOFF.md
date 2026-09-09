@@ -28,7 +28,7 @@ python3 client/server.py start --save clean-001
 Setup enables only base plus `codex-controller`, backs up the previous client mod list, and generates a new RCON credential in ignored `runtime/`. The runtime directory is private; server logs contain launch arguments and must not be published. Creating a map refuses to overwrite an existing save. Stop an existing server before starting another on these ports.
 
 4. Start the graphical client and connect via Multiplayer → Connect to address → `127.0.0.1:34198`. RCON binds to `127.0.0.1:27016`. Dismiss the introduction with Tab and keep the viewing client connected for normal hand crafting.
-5. Check controller version `0.2.0`, then bind and inspect:
+5. Check controller version `0.3.2`, then bind and inspect:
 
 ```sh
 python3 client/agent.py '{"op":"hello"}'
@@ -64,3 +64,19 @@ Normal unit tests use local socket fixtures and do not need a game. These additi
 Neither optional test was replayed during the initial publication. The subsequent MCP change re-ran the historical reload test with `--mcp`, also checking submission, status, and cancellation on its disposable copy. Use the MCP environment's Python for that option. Results and limits are summarized in [CHANGELOG.md](CHANGELOG.md).
 
 Stop the configured local server with `python3 client/server.py stop` and wait for it to exit before starting a different save. The stop command requests graceful shutdown; it does not wait for completion.
+
+## Current learning checkpoint
+
+The [learning report](knowledge/learning-001.md) records a fresh development
+attempt through powered labs, Automation and Gun turret, with one loaded turret.
+The private run is closed and its final checkpoint was verified and left paused.
+Continue in a new ledger, recording whether it is a checkpoint continuation or
+an independent fresh attempt. Exact files, layout and source/checkpoint hashes
+remain in the local runtime run directory.
+
+Use controller 0.3.2 from the beginning for the next fresh attempt. If a reload
+reports `no_bound_character`, connect the viewer and bind the existing engineer,
+then compare position, inventory, ammunition and health to the saved state. Do
+not replay failed batches: a placed turret or queued craft may already exist.
+Prioritize supplied automatic science and ammunition reserves; Military 2 and a
+real defensive encounter remain unverified.

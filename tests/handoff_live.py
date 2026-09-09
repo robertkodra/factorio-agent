@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 from client.agent import Agent, AgentError, ROOT
-from client.server import GAME, MOD_DIRECTORY, controller_mod_list
+from client.server import GAME, MOD_DIRECTORY, MOD_VERSION, controller_mod_list
 
 
 def free_port(kind):
@@ -36,7 +36,7 @@ def validate_mcp(port, password):
             args=['-m', 'client.mcp_server', '--port', str(port), '--password-file', str(password)])
         async with Client(params, mode='legacy', read_timeout_seconds=10) as client:
             tools = (await client.list_tools()).tools
-            assert len(tools) == 13
+            assert len(tools) == 15
 
             async def call(name, **arguments):
                 response = await client.call_tool(name, arguments)
@@ -48,7 +48,8 @@ def validate_mcp(port, password):
             factory = await call('factory')
             research = await call('research_state')
             await call('scan', radius=1, limit=1)
-            assert hello['version'] == '0.2.0'
+            await call('survey', radius=1, limit=1)
+            assert hello['version'] == MOD_VERSION
             assert factory['produced']['logistic-science-pack'] == 20
             assert 'logistics' in research['researched']
             invalid = await client.call_tool('submit', dict(id='must-not-send', actions=[dict(type='execute_lua')]))
@@ -119,7 +120,7 @@ def main():
         with agent:
             hello = agent.request('hello')
             before = agent.request('observe')
-            assert before['mods'] == {'base': '2.0.77', 'codex-controller': '0.2.0'}
+            assert before['mods'] == {'base': '2.0.77', 'codex-controller': MOD_VERSION}
             factory = agent.request('factory')
             research = agent.request('research_state')
             rejected = []
@@ -130,7 +131,7 @@ def main():
                     rejected.append(op)
                 else: raise AssertionError('Unexpectedly accepted forbidden operation')
             after = agent.request('observe')
-            assert hello['version'] == '0.2.0'
+            assert hello['version'] == MOD_VERSION
             assert factory['produced']['logistic-science-pack'] == 20
             assert research['produced']['automation-science-pack'] == 114
             assert 'logistics' in research['researched']
