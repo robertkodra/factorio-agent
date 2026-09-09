@@ -1,0 +1,95 @@
+{
+  "id": "extend-belts",
+  "actions": [
+    {
+      "type": "put",
+      "entity": "burner-mining-drill",
+      "x": -78,
+      "y": -49,
+      "inventory": "fuel",
+      "item": "coal",
+      "count": 1
+    },
+    {
+      "type": "put",
+      "entity": "stone-furnace",
+      "x": -72,
+      "y": -45,
+      "inventory": "fuel",
+      "item": "coal",
+      "count": 1
+    },
+    {
+      "type": "put",
+      "entity": "stone-furnace",
+      "x": -72,
+      "y": -45,
+      "inventory": "source",
+      "item": "iron-ore",
+      "count": 6
+    },
+    {
+      "type": "wait_inventory",
+      "entity": "stone-furnace",
+      "x": -72,
+      "y": -45,
+      "inventory": "result",
+      "item": "iron-plate",
+      "count": 6
+    },
+    {
+      "type": "take",
+      "entity": "stone-furnace",
+      "x": -72,
+      "y": -45,
+      "inventory": "result",
+      "item": "iron-plate",
+      "count": 6
+    },
+    {
+      "type": "craft",
+      "recipe": "transport-belt",
+      "count": 2
+    },
+    {
+      "type": "walk",
+      "x": -65,
+      "y": -46
+    },
+    {
+      "type": "await_craft"
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -64.5,
+      "y": -49.5
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -63.5,
+      "y": -49.5
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -62.5,
+      "y": -49.5
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -61.5,
+      "y": -49.5
+    },
+    {
+      "type": "wait_ticks",
+      "ticks": 360
+    }
+  ]
+}

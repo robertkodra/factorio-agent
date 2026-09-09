@@ -1,0 +1,206 @@
+{
+  "id": "first-belts",
+  "actions": [
+    {
+      "type": "walk",
+      "x": -48.5,
+      "y": -51,
+      "tolerance": 0.5
+    },
+    {
+      "type": "mine",
+      "x": -48.5,
+      "y": -52.5,
+      "entity": "coal",
+      "count": 8
+    },
+    {
+      "type": "walk",
+      "x": -75,
+      "y": -47,
+      "tolerance": 0.5
+    },
+    {
+      "type": "mine",
+      "x": -75.5,
+      "y": -48.5,
+      "entity": "iron-ore",
+      "count": 10
+    },
+    {
+      "type": "place",
+      "x": -78,
+      "y": -49,
+      "entity": "burner-mining-drill",
+      "direction": "east"
+    },
+    {
+      "type": "place",
+      "x": -76,
+      "y": -49,
+      "entity": "stone-furnace"
+    },
+    {
+      "type": "put",
+      "x": -78,
+      "y": -49,
+      "entity": "burner-mining-drill",
+      "inventory": "fuel",
+      "item": "coal",
+      "count": 4
+    },
+    {
+      "type": "put",
+      "x": -76,
+      "y": -49,
+      "entity": "stone-furnace",
+      "inventory": "fuel",
+      "item": "coal",
+      "count": 2
+    },
+    {
+      "type": "put",
+      "x": -76,
+      "y": -49,
+      "entity": "stone-furnace",
+      "inventory": "source",
+      "item": "iron-ore",
+      "count": 10
+    },
+    {
+      "type": "wait_inventory",
+      "x": -76,
+      "y": -49,
+      "entity": "stone-furnace",
+      "inventory": "result",
+      "item": "iron-plate",
+      "count": 18,
+      "timeout": 9000
+    },
+    {
+      "type": "take",
+      "x": -76,
+      "y": -49,
+      "entity": "stone-furnace",
+      "inventory": "result",
+      "item": "iron-plate",
+      "count": 18
+    },
+    {
+      "type": "mine",
+      "x": -76,
+      "y": -49,
+      "entity": "stone-furnace",
+      "count": 1,
+      "item": "stone-furnace"
+    },
+    {
+      "type": "place",
+      "x": -72,
+      "y": -45,
+      "entity": "stone-furnace"
+    },
+    {
+      "type": "craft",
+      "recipe": "transport-belt",
+      "count": 6
+    },
+    {
+      "type": "walk",
+      "x": -70,
+      "y": -47,
+      "tolerance": 0.4
+    },
+    {
+      "type": "await_craft"
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -76.5,
+      "y": -49.5
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -75.5,
+      "y": -49.5
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -74.5,
+      "y": -49.5
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -73.5,
+      "y": -49.5
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -72.5,
+      "y": -49.5
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -71.5,
+      "y": -49.5
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -70.5,
+      "y": -49.5
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -69.5,
+      "y": -49.5
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -68.5,
+      "y": -49.5
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -67.5,
+      "y": -49.5
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -66.5,
+      "y": -49.5
+    },
+    {
+      "type": "place",
+      "entity": "transport-belt",
+      "direction": "east",
+      "x": -65.5,
+      "y": -49.5
+    },
+    {
+      "type": "wait_ticks",
+      "ticks": 720
+    }
+  ]
+}

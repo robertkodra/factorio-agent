@@ -1,0 +1,429 @@
+local VERSION = '0.2.0'
+local resumed = false
+local DIR = {north=0,northeast=2,east=4,southeast=6,south=8,southwest=10,west=12,northwest=14}
+local INV = {fuel=defines.inventory.fuel,source=defines.inventory.furnace_source,result=defines.inventory.furnace_result,chest=defines.inventory.chest,input=defines.inventory.assembling_machine_input,output=defines.inventory.assembling_machine_output}
+local TYPES = {walk=true,mine=true,craft=true,await_craft=true,place=true,put=true,take=true,wait_inventory=true,research=true,set_recipe=true,rotate=true,wait_ticks=true}
+local FIELDS = {type=true,x=true,y=true,count=true,item=true,recipe=true,entity=true,direction=true,inventory=true,tolerance=true,timeout=true,ticks=true,technology=true}
+local function state()
+  storage.agent = storage.agent or {version=VERSION,jobs={},order={},events={},sequence=0,follow=true,pauses=0}
+  return storage.agent
+end
+local function integer(x,lo,hi) return type(x)=='number' and x==math.floor(x) and x>=lo and x<=hi end
+local function coordinate(x) return type(x)=='number' and x==x and math.abs(x)<=1000000 end
+local function named(x) return type(x)=='string' and #x>0 and #x<=120 and x:match('^[%w_%-]+$') end
+local function event(kind,detail)
+  local s=state();s.sequence=s.sequence+1
+  local e={seq=s.sequence,tick=game.tick,kind=kind,job=s.current,detail=detail}
+  s.events[#s.events+1]=e
+  if #s.events>2048 then table.remove(s.events,1) end
+  helpers.write_file('codex-controller/events.jsonl',helpers.table_to_json(e)..'\n',true)
+end
+local function actor()
+  local c=state().character
+  if not c or not c.valid or c.type~='character' then error('no_bound_character') end
+  return c
+end
+local function check_rules(player)
+  if game.speed~=1 then error('policy_requires_normal_game_speed') end
+  if player and player.cheat_mode then error('policy_rejects_cheat_mode') end
+  for name,_ in pairs(script.active_mods) do
+    if name~='base' and name~='codex-controller' then error('policy_rejects_extra_mod_'..name) end
+  end
+end
+local function stop(c)
+  if c and c.valid then
+    c.walking_state={walking=false}
+    c.mining_state={mining=false}
+  end
+end
+local function finish(j,status,reason)
+  local s=state();stop(s.character)
+  j.status=status;j.error=reason;j.finished_tick=game.tick;j.runtime=nil
+  event(status,{index=j.index,error=reason,metrics=j.metrics})
+end
+local function next_step(j,detail)
+  local c=actor();local a=j.actions[j.index]
+  if a.type=='walk' then c.walking_state={walking=false} end
+  if a.type=='mine' then c.mining_state={mining=false} end
+  event('step_complete',{index=j.index,action=a.type,result=detail})
+  j.index=j.index+1;j.runtime=nil
+end
+local function entity_at(c,a)
+  local filter={position={a.x,a.y},radius=0.15}
+  if a.entity then filter.name=a.entity end
+  local es=c.surface.find_entities_filtered(filter)
+  table.sort(es,function(x,y) return x.type~='resource' and y.type=='resource' end)
+  for _,e in ipairs(es) do if e~=c then return e end end
+  error('entity_not_found')
+end
+local function close_to(c,e)
+  if not c.can_reach_entity(e) then error('out_of_reach') end
+end
+local function inventory(e,name)
+  local inv=e.get_inventory(INV[name or 'chest'])
+  if not inv then error('invalid_inventory_for_entity') end
+  return inv
+end
+local function validate(actions)
+  if type(actions)~='table' or #actions<1 or #actions>512 then error('actions_must_have_1_to_512_entries') end
+  for key,_ in pairs(actions) do if not integer(key,1,#actions) then error('actions_must_be_array') end end
+  local out={}
+  for i,a in ipairs(actions) do
+    if type(a)~='table' or not TYPES[a.type] then error('invalid_action_'..i) end
+    for k,_ in pairs(a) do if not FIELDS[k] then error('unknown_action_field_'..tostring(k)) end end
+    local b={};for k,v in pairs(a) do b[k]=v end
+    if b.timeout~=nil and not integer(b.timeout,1,216000) then error('invalid_timeout') end
+    b.timeout=b.timeout or 3600
+    if a.type=='walk' or a.type=='mine' or a.type=='place' or a.type=='put' or a.type=='take' or a.type=='set_recipe' or a.type=='rotate' or (a.type=='wait_inventory' and (a.x~=nil or a.y~=nil)) then
+      if not coordinate(a.x) or not coordinate(a.y) then error('invalid_coordinates') end
+    end
+    if a.type=='walk' then
+      b.tolerance=b.tolerance or 0.35
+      if type(b.tolerance)~='number' or b.tolerance<0.1 or b.tolerance>10 then error('invalid_tolerance') end
+    end
+    if a.type=='mine' or a.type=='craft' or a.type=='put' or a.type=='take' or a.type=='wait_inventory' then
+      if not integer(a.count,1,100000) then error('invalid_count') end
+    end
+    if a.type=='put' or a.type=='take' or a.type=='wait_inventory' then
+      if not named(a.item) or not prototypes.item[a.item] then error('invalid_item') end
+      if a.inventory and not INV[a.inventory] then error('invalid_inventory') end
+    end
+    if a.type=='craft' or a.type=='set_recipe' then
+      if not named(a.recipe) or not prototypes.recipe[a.recipe] then error('invalid_recipe') end
+    end
+    if a.type=='place' then
+      if not named(a.entity) or not prototypes.entity[a.entity] then error('invalid_entity') end
+      b.item=b.item or a.entity
+      if not prototypes.item[b.item] or not prototypes.item[b.item].place_result or prototypes.item[b.item].place_result.name~=a.entity then error('invalid_placement_item') end
+      if a.direction~=nil and not DIR[a.direction] then error('invalid_direction') end
+      b.direction=b.direction or 'north'
+    end
+    if a.type=='research' and not named(a.technology) then error('invalid_technology') end
+    if a.type=='wait_ticks' and not integer(a.ticks,1,216000) then error('invalid_ticks') end
+    out[i]=b
+  end
+  return out
+end
+local function fingerprint(actions)
+  local parts={}
+  for _,a in ipairs(actions) do
+    local keys={};for k,_ in pairs(a) do keys[#keys+1]=k end;table.sort(keys)
+    local values={};for _,k in ipairs(keys) do values[#values+1]=helpers.table_to_json({k}):sub(2,-2)..':'..helpers.table_to_json({a[k]}):sub(2,-2) end
+    parts[#parts+1]='{'..table.concat(values,',')..'}'
+  end
+  return '['..table.concat(parts,',')..']'
+end
+local function request_path(c,a,r)
+  r.path=nil;r.ready=false;r.segment=1
+  r.path_id=c.surface.request_path{bounding_box=c.prototype.collision_box,collision_mask=c.prototype.collision_mask,start=c.position,goal={a.x,a.y},force=c.force,radius=a.tolerance,entity_to_ignore=c,pathfind_flags={prefer_straight_paths=true,no_break=true}}
+  if not r.path_id then error('path_request_failed') end
+end
+local function start_step(c,j,a)
+  local r={started_tick=game.tick};j.runtime=r
+  event('step_started',{index=j.index,action=a.type})
+  if a.type=='walk' then
+    request_path(c,a,r);r.last_move_tick=game.tick;r.last_position=c.position;r.repaths=0
+  elseif a.type=='mine' then
+    local e=entity_at(c,a);close_to(c,e)
+    local props=e.prototype.mineable_properties
+    if not props.minable or not props.products or #props.products==0 then error('entity_not_mineable') end
+    local item=a.item or props.products[1].name
+    if not prototypes.item[item] then error('mining_product_not_item') end
+    local produces=false;for _,p in pairs(props.products) do if p.name==item and p.type=='item' then produces=true end end
+    if not produces then error('invalid_mining_product') end
+    r.target=e;r.item=item;r.initial=c.get_item_count(item)
+  elseif a.type=='craft' then
+    if not c.force.recipes[a.recipe].enabled then error('recipe_locked') end
+    -- Player-less character crafts do not update force production statistics or
+    -- craft-item research triggers. Keep normal ownership through completion.
+    if not c.player then
+      local owner=game.get_player(state().owner)
+      if not owner or not owner.connected then error('crafting_requires_viewer') end
+      owner.set_controller{type=defines.controllers.character,character=c}
+      event('craft_player_attached')
+    end
+    if c.get_craftable_count(a.recipe)<a.count then error('insufficient_materials') end
+    local n=c.begin_crafting{recipe=a.recipe,count=a.count}
+    if n~=a.count then error('craft_queue_rejected') end
+    next_step(j,{queued=n});return
+  elseif a.type=='place' then
+    local pos={a.x,a.y};local dir=DIR[a.direction]
+    if c.get_item_count(a.item)<1 then error('missing_item') end
+    if not c.can_place_entity{name=a.entity,position=pos,direction=dir} then error('placement_rejected') end
+    local removed=c.remove_item{name=a.item,count=1}
+    if removed~=1 then error('inventory_changed') end
+    local ok,e=pcall(function() return c.surface.create_entity{name=a.entity,position=pos,direction=dir,force=c.force,raise_built=true,build_check_type=defines.build_check_type.manual} end)
+    if not ok or not e then c.insert{name=a.item,count=1};error('placement_failed') end
+    j.metrics.placed=(j.metrics.placed or 0)+1
+    next_step(j,{entity=e.name,position=e.position});return
+  elseif a.type=='put' or a.type=='take' then
+    local e=entity_at(c,a);close_to(c,e)
+    local own=c.get_main_inventory();local other=inventory(e,a.inventory)
+    local src=a.type=='put' and own or other;local dst=a.type=='put' and other or own
+    if src.get_item_count(a.item)<a.count then error('insufficient_items') end
+    if dst.get_insertable_count(a.item)<a.count then error('insufficient_space') end
+    local n=src.remove{name=a.item,count=a.count};local added=dst.insert{name=a.item,count=n}
+    if added<n then src.insert{name=a.item,count=n-added};error('transfer_incomplete') end
+    next_step(j,{entity=e.name,item=a.item,count=added});return
+  elseif a.type=='research' then
+    if not c.force.add_research(a.technology) then error('research_unavailable') end
+    next_step(j);return
+  elseif a.type=='set_recipe' then
+    local e=entity_at(c,a);close_to(c,e)
+    if not c.force.recipes[a.recipe] or not c.force.recipes[a.recipe].enabled then error('recipe_locked') end
+    local input=e.get_inventory(defines.inventory.assembling_machine_input)
+    local output=e.get_output_inventory()
+    if (input and not input.is_empty()) or (output and not output.is_empty()) or e.is_crafting() then error('empty_machine_before_recipe_change') end
+    e.set_recipe(a.recipe);next_step(j);return
+  elseif a.type=='rotate' then
+    local e=entity_at(c,a);close_to(c,e)
+    if not e.rotate() then error('rotation_rejected') end
+    next_step(j);return
+  end
+end
+local function step(c,j,a,r)
+  if game.tick-r.started_tick>a.timeout then error('step_timeout') end
+  if a.type=='walk' then
+    local pos=c.position;local dx=a.x-pos.x;local dy=a.y-pos.y
+    if dx*dx+dy*dy<=a.tolerance*a.tolerance then next_step(j,{position=pos});return end
+    if not r.ready then return end
+    if not r.path then
+      if r.busy and (r.repaths or 0)<3 then r.repaths=(r.repaths or 0)+1;request_path(c,a,r);return end
+      error('no_path')
+    end
+    while r.segment<#r.path do
+      local q=r.path[r.segment].position;local n=r.path[r.segment+1].position
+      local vx=n.x-q.x;local vy=n.y-q.y
+      local near=(pos.x-n.x)^2+(pos.y-n.y)^2<0.04
+      if near or (pos.x-q.x)*vx+(pos.y-q.y)*vy>=vx*vx+vy*vy then r.segment=r.segment+1 else break end
+    end
+    local t=r.segment<#r.path and r.path[r.segment+1].position or {x=a.x,y=a.y}
+    local angle=math.atan2(t.x-pos.x,pos.y-t.y)
+    local dir=(math.floor(angle/(math.pi/4)+0.5)*2)%16
+    c.walking_state={walking=true,direction=dir}
+    if (pos.x-r.last_position.x)^2+(pos.y-r.last_position.y)^2>0.0025 then r.last_position={x=pos.x,y=pos.y};r.last_move_tick=game.tick end
+    if game.tick-r.last_move_tick>120 then
+      if r.repaths>=2 then error('stuck') end
+      r.repaths=r.repaths+1;r.last_move_tick=game.tick;request_path(c,a,r)
+    end
+  elseif a.type=='mine' then
+    local gained=c.get_item_count(r.item)-r.initial
+    if gained>=a.count then next_step(j,{item=r.item,mined=gained});return end
+    if not r.target.valid then error('target_depleted_before_count') end
+    close_to(c,r.target)
+    c.mining_state={mining=true,position=r.target.position}
+    c.selected=r.target -- Position-based selection can choose overlapping trees.
+  elseif a.type=='await_craft' then
+    if c.crafting_queue_size==0 then next_step(j) end
+  elseif a.type=='wait_inventory' then
+    local inv=c.get_main_inventory()
+    if a.x~=nil then local e=entity_at(c,a);close_to(c,e);inv=inventory(e,a.inventory) end
+    local n=inv.get_item_count(a.item)
+    if n>=a.count then next_step(j,{count=n}) end
+  elseif a.type=='wait_ticks' then
+    if game.tick-r.started_tick>=a.ticks then next_step(j) end
+  end
+end
+local function tick()
+  local s=state();local c=s.character
+  if not c or not c.valid then
+    if s.current and s.jobs[s.current].status=='running' then finish(s.jobs[s.current],'failed','character_lost') end
+    resumed=false
+    return
+  end
+  local owner=game.get_player(s.owner)
+  if owner and c.player and c.crafting_queue_size==0 then
+    owner.character=nil;owner.set_controller{type=defines.controllers.spectator}
+    event('craft_player_detached')
+  end
+  if owner and owner.connected and s.follow and owner.controller_type==defines.controllers.spectator then
+    owner.teleport(c.position,c.surface) -- Camera only. Never teleports the engineer.
+  end
+  local j=s.current and s.jobs[s.current]
+  if owner and owner.connected and game.tick%6==0 then
+    local panel=owner.gui.left.codex_agent_panel
+    if not panel then
+      panel=owner.gui.left.add{type='frame',name='codex_agent_panel',caption='Codex controller',direction='vertical'}
+      panel.add{type='label',name='job',caption='Idle'}
+      panel.add{type='label',name='activity',caption=''}
+      panel.add{type='progressbar',name='mining',value=0}.style.width=260
+      panel.add{type='button',name='codex_agent_stop',caption='Stop job'}
+    end
+    panel.job.caption=j and (j.id..': '..j.status..' ('..math.min(j.index,#j.actions)..'/'..#j.actions..')') or 'Idle'
+    local action=j and j.status=='running' and j.actions[j.index]
+    panel.activity.caption=(action and action.type or 'Waiting')..' | Coal '..c.get_item_count('coal')..' | Belts '..c.get_item_count('transport-belt')
+    panel.mining.value=c.character_mining_progress
+  end
+  if not j or j.status~='running' then resumed=false;return end
+  if resumed then
+    resumed=false
+    if j.runtime and j.actions[j.index].type=='walk' then request_path(c,j.actions[j.index],j.runtime) end
+    event('resumed_after_load',{index=j.index})
+  end
+  local pos=c.position
+  if j.last_position then
+    local d=math.sqrt((pos.x-j.last_position.x)^2+(pos.y-j.last_position.y)^2)
+    j.metrics.max_step=math.max(j.metrics.max_step or 0,d)
+  end
+  j.last_position={x=pos.x,y=pos.y};j.metrics.ticks=j.metrics.ticks+1
+  if c.walking_state.walking and c.crafting_queue_size>0 then j.metrics.walk_craft_overlap_ticks=(j.metrics.walk_craft_overlap_ticks or 0)+1 end
+  local a=j.actions[j.index]
+  if not a then finish(j,'complete');return end
+  local ok,err=pcall(function()
+    check_rules(owner)
+    if not j.runtime then start_step(c,j,a) end
+    if j.runtime then step(c,j,a,j.runtime) end
+  end)
+  if not ok then finish(j,'failed',tostring(err)) end
+end
+local function job_status(j)
+  if not j then return {status='idle'} end
+  return {id=j.id,status=j.status,index=j.index,total=#j.actions,action=j.actions[j.index] and j.actions[j.index].type,started_tick=j.started_tick,finished_tick=j.finished_tick,error=j.error,metrics=j.metrics}
+end
+local function snapshot()
+  local s=state();local c=actor();local owner=game.get_player(s.owner)
+  return {version=VERSION,tick=game.tick,speed=game.speed,paused=game.tick_paused,mods=script.active_mods,position=c.position,health=c.health,inventory=c.get_main_inventory().get_contents(),crafting=c.crafting_queue or {},walking=c.walking_state,mining=c.mining_state.mining,actor_unit=c.unit_number,actor_has_player=c.player~=nil,viewer_controller=owner and owner.controller_type,job=job_status(s.current and s.jobs[s.current]),sequence=s.sequence,pauses=s.pauses,policy='no-console-lua-v1'}
+end
+local function factory_snapshot()
+local c=actor();local f=c.force;local s=c.surface;
+local o={tick=game.tick,speed=game.speed,paused=game.tick_paused,entities={},researched={},
+research=f.current_research and f.current_research.name,progress=f.research_progress,produced={}};
+for n,t in pairs(f.technologies)do if t.researched then table.insert(o.researched,n)end end;
+table.sort(o.researched);
+for _,e in pairs(s.find_entities_filtered{force=f})do
+ local v={name=e.name,type=e.type,position=e.position,direction=e.direction,status=e.status,
+ health=e.health,energy=e.energy,box=e.bounding_box};
+ local fuel=e.get_fuel_inventory();if fuel then v.fuel=fuel.get_contents()end;
+ local input=nil;
+ if e.type=='assembling-machine' then
+  local recipe=e.get_recipe();v.recipe=recipe and recipe.name;
+  input=e.get_inventory(defines.inventory.assembling_machine_input);
+ elseif e.type=='furnace' then input=e.get_inventory(defines.inventory.furnace_source);
+ elseif e.type=='lab' then input=e.get_inventory(defines.inventory.lab_input);end;
+ if input then v.input=input.get_contents()end;
+ if e.type=='assembling-machine' or e.type=='furnace' then
+  local output=e.get_output_inventory();if output then v.output=output.get_contents()end;
+ end;
+ if e.type=='inserter' then v.pickup=e.pickup_position;v.drop=e.drop_position;end;
+ table.insert(o.entities,v);
+end;
+local stats=f.get_item_production_statistics(s);
+for _,n in pairs({'iron-plate','copper-plate','automation-science-pack','logistic-science-pack',
+'military-science-pack','chemical-science-pack','construction-robot','logistic-robot'})do
+ o.produced[n]=stats.get_input_count(n);end;
+return o
+end
+local function research_snapshot()
+local c=actor();local f=c.force;local out={tick=game.tick,researched={},produced={}};
+for n,t in pairs(f.technologies)do if t.researched then out.researched[#out.researched+1]=n end end;
+table.sort(out.researched);
+local stats=f.get_item_production_statistics(c.surface);
+for _,n in pairs({'iron-plate','copper-plate','automation-science-pack','logistic-science-pack','military-science-pack','chemical-science-pack','construction-robot','logistic-robot'})do out.produced[n]=stats.get_input_count(n)end;
+return out
+end
+local function handle(req)
+  if type(req)~='table' then error('request_must_be_object') end
+  local s=state();local op=req.op
+  if op=='hello' then return {version=VERSION,commands={'bind','release','submit','status','observe','scan','inspect','factory','research_state','cancel','pause','save'},actions=TYPES} end
+  if op=='bind' then
+    if s.character and s.character.valid then check_rules(game.get_player(s.owner));return snapshot() end
+    local p=game.get_player(req.player or 1)
+    if not p or not p.connected or not p.character then error('active_character_required') end
+    check_rules(p)
+    if p.cheat_mode then error('cheat_mode_not_supported') end
+    local c=p.character;stop(c)
+    s.character=c;s.owner=p.index
+    p.character=nil;p.set_controller{type=defines.controllers.spectator}
+    event('bound',{owner=p.index,unit=c.unit_number,inventory=c.get_main_inventory().get_contents(),position=c.position})
+    return snapshot()
+  elseif op=='release' then
+    local c=actor();local p=game.get_player(s.owner)
+    if s.current and s.jobs[s.current].status=='running' then finish(s.jobs[s.current],'cancelled','released') end
+    stop(c);p.set_controller{type=defines.controllers.character,character=c};s.character=nil
+    if p.gui.left.codex_agent_panel then p.gui.left.codex_agent_panel.destroy() end
+    event('released');return {released=true}
+  elseif op=='observe' then return snapshot()
+  elseif op=='factory' then return factory_snapshot()
+  elseif op=='research_state' then return research_snapshot()
+  elseif op=='status' then
+    if req.id and not s.jobs[req.id] then error('unknown_job_id') end
+    local j=req.id and s.jobs[req.id] or (s.current and s.jobs[s.current]);local out=job_status(j);out.tick=game.tick;out.sequence=s.sequence;out.events={}
+    local after=req.after or s.sequence
+    if not integer(after,0,s.sequence) then error('invalid_cursor') end
+    for _,e in ipairs(s.events) do if e.seq>after and #out.events<100 then out.events[#out.events+1]=e end end
+    return out
+  elseif op=='submit' then
+    actor()
+    check_rules(game.get_player(s.owner))
+    if not named(req.id) then error('valid_id_required') end
+    local actions=validate(req.actions);local signature=fingerprint(actions)
+    if s.jobs[req.id] then
+      if fingerprint(s.jobs[req.id].actions)~=signature then error('id_conflict') end
+      return job_status(s.jobs[req.id])
+    end
+    if s.current and s.jobs[s.current].status=='running' then error('busy') end
+    if #s.order>=256 then error('job_history_full_save_and_start_new_session') end
+    local j={id=req.id,actions=actions,fingerprint=signature,index=1,status='running',started_tick=game.tick,metrics={ticks=0,max_step=0}}
+    s.jobs[req.id]=j;s.order[#s.order+1]=req.id;s.current=req.id
+    event('submitted',{id=req.id,actions=actions});return job_status(j)
+  elseif op=='cancel' then
+    local j=s.current and s.jobs[s.current]
+    if req.id and (not j or req.id~=j.id) then error('job_id_mismatch') end
+    if j and j.status=='running' then finish(j,'cancelled','requested') end
+    return job_status(j)
+  elseif op=='pause' then
+    if type(req.value)~='boolean' then error('boolean_required') end
+    if game.tick_paused~=req.value then s.pauses=s.pauses+1;event('pause',{value=req.value}) end
+    game.tick_paused=req.value;return {paused=game.tick_paused,tick=game.tick}
+  elseif op=='save' then
+    if not named(req.name) then error('invalid_save_name') end
+    game.server_save(req.name);event('save_requested',{name=req.name});return {requested=req.name,tick=game.tick}
+  elseif op=='scan' then
+    local c=actor();local radius=req.radius or 64
+    if type(radius)~='number' or radius<1 or radius>128 then error('radius_must_be_1_to_128') end
+    if req.name and not named(req.name) then error('invalid_name') end
+    local es=c.surface.find_entities_filtered{position=c.position,radius=radius,name=req.name,type=req.type}
+    local out={}
+    for _,e in ipairs(es) do
+      if e~=c and c.force.is_chunk_charted(c.surface,{math.floor(e.position.x/32),math.floor(e.position.y/32)}) then
+        out[#out+1]={name=e.name,type=e.type,x=e.position.x,y=e.position.y,amount=e.type=='resource' and e.amount or nil,distance=math.sqrt((e.position.x-c.position.x)^2+(e.position.y-c.position.y)^2)}
+      end
+    end
+    table.sort(out,function(a,b)return a.distance<b.distance end)
+    local results={};for i=1,math.min(#out,req.limit and math.min(100,math.max(1,req.limit)) or 20)do results[i]=out[i]end
+    return {entities=results,total=#out,tick=game.tick}
+  elseif op=='inspect' then
+    local c=actor();if not coordinate(req.x) or not coordinate(req.y) then error('invalid_coordinates') end
+    local e=entity_at(c,req);close_to(c,e)
+    local invs={};for name,idx in pairs(INV) do local inv=e.get_inventory(idx);if inv then invs[name]=inv.get_contents() end end
+    local out={name=e.name,position=e.position,direction=e.direction,status=e.status,inventories=invs}
+    if e.type=='transport-belt' then out.lines={e.get_transport_line(1).get_contents(),e.get_transport_line(2).get_contents()} end
+    if e.type=='mining-drill' then out.drop_position=e.drop_position end
+    return out
+  end
+  error('unknown_operation')
+end
+commands.add_command('codex-agent','Bounded local agent control (JSON).',function(cmd)
+  if cmd.player_index and not game.get_player(cmd.player_index).admin then return end
+  local ok,result=pcall(function()
+    if not cmd.parameter or #cmd.parameter>131072 then error('request_too_large_or_missing') end
+    return handle(helpers.json_to_table(cmd.parameter))
+  end)
+  local response=ok and {ok=true,result=result} or {ok=false,error=tostring(result)}
+  if not ok then log('codex-agent rejected: '..tostring(result)) end
+  rcon.print(helpers.table_to_json(response))
+end)
+script.on_init(function()state()end)
+script.on_configuration_changed(function()state().version=VERSION end)
+script.on_load(function()resumed=true end)
+script.on_event(defines.events.on_tick,tick)
+script.on_event(defines.events.on_script_path_request_finished,function(e)
+  local s=state();local j=s.current and s.jobs[s.current];local r=j and j.runtime
+  if r and r.path_id==e.id then r.path=e.path;r.ready=true;r.busy=e.try_again_later end
+end)
+script.on_event(defines.events.on_gui_click,function(e)
+  if not e.element or not e.element.valid or e.element.name~='codex_agent_stop' then return end
+  local s=state();if e.player_index~=s.owner then return end
+  local j=s.current and s.jobs[s.current]
+  if j and j.status=='running' then finish(j,'cancelled','viewer_stop_button') end
+end)
