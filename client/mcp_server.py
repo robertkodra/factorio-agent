@@ -77,7 +77,7 @@ class Bridge:
                                    "The game may still be executing the command.")
             if op == "submit":
                 payload["reconcile"] = dict(tool="status", arguments=dict(id=arguments["id"]))
-            elif op == "cancel" and "id" in arguments:
+            elif op in ("cancel", "interrupt") and "id" in arguments:
                 payload["reconcile"] = dict(tool="status", arguments=dict(id=arguments["id"]))
             return result(payload, True)
 

@@ -1,4 +1,4 @@
-local VERSION = '0.7.0'
+local VERSION = '0.8.0'
 local navigation = require('navigation')
 local combat_observation = require('combat_observation')
 local reflex = require('reflex')
@@ -8,8 +8,8 @@ local job_history = require('job_history')
 local resumed = false
 local DIR = {north=0,northeast=2,east=4,southeast=6,south=8,southwest=10,west=12,northwest=14}
 local INV = {fuel=defines.inventory.fuel,source=defines.inventory.furnace_source,result=defines.inventory.furnace_result,chest=defines.inventory.chest,input=defines.inventory.assembling_machine_input,output=defines.inventory.assembling_machine_output,ammo=defines.inventory.turret_ammo}
-local TYPES = {walk=true,mine=true,craft=true,await_craft=true,place=true,put=true,take=true,wait_inventory=true,research=true,set_recipe=true,rotate=true,wait_ticks=true,launch=true}
-local FIELDS = {type=true,x=true,y=true,count=true,item=true,recipe=true,entity=true,direction=true,belt_type=true,inventory=true,player_inventory=true,tolerance=true,timeout=true,ticks=true,technology=true}
+local TYPES = {walk=true,mine=true,craft=true,await_craft=true,place=true,put=true,take=true,wait_inventory=true,research=true,set_recipe=true,rotate=true,wait_ticks=true,launch=true,limit_chest=true}
+local FIELDS = {type=true,x=true,y=true,count=true,item=true,recipe=true,entity=true,direction=true,belt_type=true,inventory=true,player_inventory=true,tolerance=true,timeout=true,ticks=true,technology=true,slots=true}
 local function state()
   storage.agent = storage.agent or {version=VERSION,jobs={},order={},events={},sequence=0,follow=true,pauses=0}
   return storage.agent
@@ -97,7 +97,7 @@ local function validate(actions)
     local b={};for k,v in pairs(a) do b[k]=v end
     if b.timeout~=nil and not integer(b.timeout,1,216000) then error('invalid_timeout') end
     b.timeout=b.timeout or 3600
-    if a.type=='walk' or a.type=='mine' or a.type=='place' or a.type=='put' or a.type=='take' or a.type=='set_recipe' or a.type=='rotate' or a.type=='launch' or (a.type=='wait_inventory' and (a.x~=nil or a.y~=nil)) then
+    if a.type=='walk' or a.type=='mine' or a.type=='place' or a.type=='put' or a.type=='take' or a.type=='set_recipe' or a.type=='rotate' or a.type=='limit_chest' or a.type=='launch' or (a.type=='wait_inventory' and (a.x~=nil or a.y~=nil)) then
       if not coordinate(a.x) or not coordinate(a.y) then error('invalid_coordinates') end
     end
     if a.type=='walk' then
@@ -126,6 +126,7 @@ local function validate(actions)
       b.direction=b.direction or 'north'
     end
     if a.type=='research' and not named(a.technology) then error('invalid_technology') end
+    if a.type=='limit_chest' and (not named(a.entity) or not integer(a.slots,0,1000)) then error('invalid_chest_limit') end
     if a.type=='launch' and a.entity~='rocket-silo' then error('launch_requires_silo_name') end
     if a.type=='wait_ticks' and not integer(a.ticks,1,216000) then error('invalid_ticks') end
     out[i]=b
@@ -193,6 +194,13 @@ local function start_step(c,j,a)
     local src=a.type=='put' and own or other;local dst=a.type=='put' and other or own
     local added=transfer.move(src,dst,a.item,a.count)
     next_step(j,{entity=e.name,item=a.item,count=added});return
+  elseif a.type=='limit_chest' then
+    local e=entity_at(c,a);close_to(c,e)
+    if e.force~=c.force or (e.type~='container' and e.type~='logistic-container') then error('limit_requires_owned_chest') end
+    local inv=e.get_inventory(defines.inventory.chest)
+    if not inv or not inv.supports_bar() or a.slots>#inv then error('unsupported_chest_limit') end
+    inv.set_bar(a.slots+1)
+    next_step(j,{entity=e.name,slots=a.slots});return
   elseif a.type=='launch' then
     local e=entity_at(c,a);close_to(c,e)
     if e.type~='rocket-silo' or e.force~=c.force then error('launch_requires_owned_silo') end
@@ -373,7 +381,7 @@ for _,e in pairs(s.find_entities_filtered{force=f})do
   for i=1,#ammo do local a=ammo[i];if a.valid_for_read then v.ammo_stacks[#v.ammo_stacks+1]={slot=i,name=a.name,count=a.count,rounds=a.ammo}end end;
  end;
  local input=nil;
- if e.type=='container' or e.type=='logistic-container' then v.chest=e.get_inventory(defines.inventory.chest).get_contents()end;
+ if e.type=='container' or e.type=='logistic-container' then local inv=e.get_inventory(defines.inventory.chest);v.chest=inv.get_contents();if inv.supports_bar and inv.supports_bar() then v.chest_slots=inv.get_bar()-1 end end;
  if e.type=='assembling-machine' or e.type=='rocket-silo' then
   local recipe=e.get_recipe();v.recipe=recipe and recipe.name;
   input=e.get_inventory(e.type=='rocket-silo' and defines.inventory.rocket_silo_input or defines.inventory.assembling_machine_input);
@@ -414,7 +422,7 @@ end
 local function handle(req)
   if type(req)~='table' then error('request_must_be_object') end
   local s=state();local op=req.op
-  if op=='hello' then return {version=VERSION,commands={'prototype','bind','release','submit','status','observe','scan','survey','placement','inspect','factory','research_state','guard','cancel','pause','save'},actions=TYPES} end
+  if op=='hello' then return {version=VERSION,commands={'prototype','bind','release','submit','status','observe','scan','survey','placement','inspect','factory','research_state','guard','cancel','interrupt','pause','save'},actions=TYPES} end
   if op=='prototype' then
     for k,_ in pairs(req) do if k~='op' and k~='entity' then error('unknown_prototype_field') end end
     if not named(req.entity) then error('invalid_entity_name') end
@@ -460,14 +468,16 @@ local function handle(req)
     if not integer(after,0,s.sequence) then error('invalid_cursor') end
     out.oldest_sequence=s.events[1] and s.events[1].seq or s.sequence+1
     out.events_lost=after<out.oldest_sequence-1
-    out.guard=s.guard
+    out.guard=s.guard;out.last_factory_damage=s.last_factory_damage
     for _,e in ipairs(s.events) do if e.seq>after and #out.events<100 then out.events[#out.events+1]=e end end
     return out
   elseif op=='submit' then
     actor()
     check_rules(game.get_player(s.owner))
     if not named(req.id) then error('valid_id_required') end
+    if req.defense~=nil and type(req.defense)~='boolean' then error('defense_boolean_required') end
     local actions=validate(req.actions);local signature=fingerprint(actions)
+    if req.defense then signature=signature..':defense' end
     local previous=job_history.find(s,req.id)
     if previous then
       if (previous.fingerprint or fingerprint(previous.actions))~=signature then error('id_conflict') end
@@ -476,9 +486,17 @@ local function handle(req)
     if s.guard and s.guard.active then error('defense_active_revalidate_after_clear') end
     if s.current and s.jobs[s.current].status=='running' then error('busy') end
     job_history.make_room(s)
-    local j={id=req.id,actions=actions,fingerprint=signature,index=1,status='running',started_tick=game.tick,metrics={ticks=0,max_step=0}}
+    local j={id=req.id,actions=actions,defense=req.defense==true,fingerprint=signature,index=1,status='running',started_tick=game.tick,metrics={ticks=0,max_step=0}}
     s.jobs[req.id]=j;s.order[#s.order+1]=req.id;s.current=req.id
     event('submitted',{id=req.id,actions=actions});return job_status(j)
+  elseif op=='interrupt' then
+    for k,_ in pairs(req) do if k~='op' and k~='id' then error('unknown_interrupt_field') end end
+    if not named(req.id) then error('valid_id_required') end
+    local j=s.current and s.jobs[s.current]
+    if not j or req.id~=j.id then error('job_id_mismatch') end
+    if j.status=='running' then finish(j,'cancelled','factory_defense_interrupt') end
+    -- Unlike an explicit user stop, emergency preemption keeps the guard.
+    return job_status(j)
   elseif op=='cancel' then
     local j=s.current and s.jobs[s.current]
     if req.id and (not j or req.id~=j.id) then error('job_id_mismatch') end
@@ -578,11 +596,28 @@ script.on_init(function()state()end)
 script.on_configuration_changed(function()state().version=VERSION end)
 script.on_load(function()resumed=true end)
 script.on_event(defines.events.on_tick,tick)
+local function factory_damage(e,kind)
+  local s=state();local owner=s.owner and game.get_player(s.owner)
+  local entity=e.entity
+  if not owner or not entity or not entity.valid or entity.force~=owner.force or
+    entity.type=='character' or not entity.unit_number or
+    not s.character or not s.character.valid or entity.surface~=s.character.surface then return end
+  -- Owned infrastructure only; never publish attacker identity or unseen terrain.
+  local record={id=entity.unit_number,entity=entity.name,position={x=entity.position.x,y=entity.position.y},
+    surface=entity.surface.index,health=entity.health or 0,lost=e.final_damage_amount or 0,kind=kind,tick=game.tick}
+  event('factory_'..kind,record);record.seq=s.sequence;s.last_factory_damage=record
+  local j=s.current and s.jobs[s.current]
+  if s.guard and s.guard.enabled and j and j.status=='running' and not j.defense then
+    finish(j,'cancelled','factory_defense_interrupt')
+  end
+end
 script.on_event(defines.events.on_entity_damaged,function(e)
+  factory_damage(e,'damaged')
   local s=state();local record=combat_observation.record(e,s.character,'damage')
   if record then s.last_damage=record;if s.guard then s.guard.urgent=true end;event('engineer_damaged',record) end
 end)
 script.on_event(defines.events.on_entity_died,function(e)
+  factory_damage(e,'destroyed')
   local s=state();local record=combat_observation.record(e,s.character,'death')
   if record then s.last_death=record;event('engineer_died',record) end
 end)

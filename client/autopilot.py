@@ -66,6 +66,8 @@ def load_plan(path):
     for site in plan['sites']:
         if 'belt_type' in site and (site['entity'] != 'underground-belt' or site['belt_type'] not in ('input','output')):
             raise ValueError('belt_type requires a normal underground belt endpoint')
+        if 'chest_slots' in site and (type(site['chest_slots']) is not int or not 0<=site['chest_slots']<=1000):
+            raise ValueError('chest_slots must be an integer between 0 and 1000')
         if 'batch_size' in site and (type(site['batch_size']) is not int or not 1<=site['batch_size']<=100):
             raise ValueError('Cell batch_size must be 1-100')
         for item,minimum in site.get('stock_min',{}).items():
@@ -250,8 +252,10 @@ class Planner:
                 growing=any(self.output_location(machine_id)==sid and entity
                     and (entity.get('crafting') or entity.get('status_name')=='working')
                     for machine_id,entity in self.entities.items() if self.sites[machine_id].get('recipe'))
-                threshold=min(missing,2 if item.endswith('science-pack') else 10)
-                if available<threshold and growing:
+                threshold=min(pickup,2 if item.endswith('science-pack') else 10)
+                stand=self.sites[sid]['stand']
+                nearby=math.hypot(stand['x']-self.o['position']['x'],stand['y']-self.o['position']['y'])<=.6
+                if available<threshold and growing and not nearby:
                     continue
                 choice = self.at(sid, dict(type='take', item=item, count=min(pickup, available, 200),
                     inventory=source['inventory']), 'collect:' + item)
@@ -431,6 +435,10 @@ class Planner:
         choice = self.maintenance()
         if choice:
             return choice
+        for sid,site in self.sites.items():
+            entity=self.entities[sid]
+            if entity and 'chest_slots' in site and entity.get('chest_slots')!=site['chest_slots']:
+                return self.at(sid,dict(type='limit_chest',slots=site['chest_slots']), 'limit-stock')
         # Establish power and buffers before a downstream component can demand
         # an assembler that depends on that same infrastructure for its output.
         rank={'small-electric-pole':0,'medium-electric-pole':0,'big-electric-pole':0,
@@ -592,12 +600,17 @@ class Runner:
         status = self.game.request('status', **({} if self.cursor.value is None else {'after': self.cursor.value}))
         for event in self.cursor.consume(status):
             self.journal.emit('game_event', event)
+            if event['kind'] in ('factory_damaged','factory_destroyed'):
+                self.factory_defense.event(dict(event['detail'],seq=event['seq'],tick=event['tick']))
         self.journal.state['event_cursor'] = self.cursor.value
+        if status.get('last_factory_damage'):
+            self.factory_defense.event(status['last_factory_damage'])
+        self.journal.state['factory_defense']=self.factory_defense.state
         o = self.game.request('observe')
         self.journal.emit('observation', o)
         if o['paused'] or o['speed'] != 1 or not o.get('guard',{}).get('enabled'):
             raise RuntimeError('Runner requires normal-speed unpaused play with local guard enabled')
-        if o.get('version') not in ('0.6.0','0.7.0') or o.get('mods',{}).get('base') != '2.0.77':
+        if o.get('version') not in ('0.6.0','0.7.0','0.8.0') or o.get('mods',{}).get('base') != '2.0.77':
             raise RuntimeError('Controller/catalog version mismatch')
         if o['version']=='0.6.0' and any('belt_type' in s for s in self.planner.sites.values()):
             raise RuntimeError('Explicit underground endpoints require controller 0.7.0')
@@ -628,10 +641,11 @@ class Runner:
             self.journal.save()
             guard=o.get('guard',{})
             try:
-                result=self.game.request('cancel',id=pending['id'])
+                result=self.game.request('interrupt' if o['version']=='0.8.0' else 'cancel',id=pending['id'])
                 self.journal.emit('factory_defense_preempted',result)
             finally:
-                self.game.request('guard',enabled=True,**({'rally':guard['rally']} if guard.get('rally') else {}))
+                if o['version']!='0.8.0':
+                    self.game.request('guard',enabled=True,**({'rally':guard['rally']} if guard.get('rally') else {}))
             return False
         if pending:
             job = self.game.request('status', id=pending['id'])
@@ -646,7 +660,7 @@ class Runner:
                 self.journal.state['consumed_gather']=sorted(self.planner.consumed_gather)
             self.journal.save()
             if job['status'] != 'complete':
-                if job.get('error') != 'defense_interrupt' and not pending.get('factory_defense_cancelled'):
+                if job.get('error') not in ('defense_interrupt','factory_defense_interrupt') and not pending.get('factory_defense_cancelled'):
                     self.failures[pending['key']] += 1
                     if pending['key'].startswith('approach:') or 'out_of_reach' in job.get('error',''):
                         sid = pending['key'].rsplit(':',1)[1]
@@ -777,7 +791,8 @@ class Runner:
         self.journal.state['pending'] = job
         self.journal.save()
         self.journal.emit('intent', job)
-        result = self.game.request('submit', id=job['id'], actions=job['actions'])
+        result = self.game.request('submit', id=job['id'], actions=job['actions'],
+            **({'defense':choice['key'].startswith('factory-defense:')} if o['version']=='0.8.0' else {}))
         self.journal.emit('submitted', result)
         print(choice['key'], flush=True)
         return False

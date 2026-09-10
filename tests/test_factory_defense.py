@@ -31,3 +31,12 @@ class FactoryDefenseTests(unittest.TestCase):
         d=FactoryDefense();d.observe(factory(10,100))
         self.assertEqual(d.observe(dict(tick=20,entities=[])),[])
         with self.assertRaises(RuntimeError):d.observe(factory(19,100))
+
+    def test_native_destruction_survives_missing_entity_and_deduplicates(self):
+        d=FactoryDefense()
+        record=dict(seq=3,tick=30,id=9,entity='transport-belt',position=dict(x=1,y=2),kind='destroyed')
+        self.assertTrue(d.event(record))
+        self.assertFalse(d.event(record))
+        d.observe(dict(tick=35,entities=[]))
+        self.assertEqual(d.state['alarm']['damage'][0]['id'],9)
+        self.assertEqual(d.state['alarm']['tick'],30)

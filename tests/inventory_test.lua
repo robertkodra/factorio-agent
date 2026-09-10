@@ -66,3 +66,40 @@ assert(transfer('put','ammo',1).status=='failed' and total()==194)
 entity.get_inventory=function(id)assert(id==9);return turret end
 assert(transfer('put','ammo',1,'input').status=='complete' and total()==194)
 print('Native amount-limited transfer, partial rounds, reserves, and lab mapping passed')
+-- Native successful tool consolidation can remove an extra physical stack
+-- unit. It must not turn the next requested amount negative.
+local transfer_module=require('transfer')
+local used={name='automation-science-pack',count=21,valid_for_read=true}
+local src={used};src.get_item_count=function()return used.count end
+local dst={{},{}};dst.get_insertable_count=function()return 100 end
+local calls=0
+dst[1].transfer_stack=function(stack,n)
+  calls=calls+1;assert(n==20)
+  stack.count=0;stack.valid_for_read=false
+  return true
+end
+dst[2].transfer_stack=function()error('Must stop after native success')end
+assert(transfer_module.move(src,dst,'automation-science-pack',20)==20 and calls==1)
+-- Partial, capacity-limited transfers continue with the actual remainder.
+used.count=10;used.valid_for_read=true
+local amounts={}
+for index=1,2 do dst[index].transfer_stack=function(stack,n)
+  amounts[#amounts+1]=n
+  local moved=math.min(n,5);stack.count=stack.count-moved;stack.valid_for_read=stack.count>0
+  return moved==n
+end end
+assert(transfer_module.move(src,dst,'automation-science-pack',8)==8)
+assert(amounts[1]==8 and amounts[2]==3 and used.count==2)
+-- Chest bars constrain future normal insertion without deleting current stock.
+defines.inventory.chest=3;character.force={};entity.force=character.force
+entity.type='container';entity.name='wooden-chest'
+local bar=17;local chest={};for i=1,16 do chest[i]={} end
+chest.supports_bar=function()return true end
+chest.set_bar=function(value)bar=value end
+entity.get_inventory=function(id)assert(id==3);return chest end
+request={op='submit',id='chest-limit',actions={{type='limit_chest',entity='wooden-chest',x=0,y=0,slots=2}}}
+handler{parameter='{}'};assert(response.ok)
+handlers[1]();game.tick=game.tick+1;handlers[1]();game.tick=game.tick+1
+assert(storage.agent.jobs['chest-limit'].status=='complete' and bar==3)
+request={op='submit',id='chest-limit-invalid',actions={{type='limit_chest',entity='wooden-chest',x=0,y=0,slots=-1}}}
+handler{parameter='{}'};assert(not response.ok and bar==3)

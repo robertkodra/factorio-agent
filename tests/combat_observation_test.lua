@@ -41,3 +41,34 @@ assert(response.result.last_death.actor_unit==12 and #response.result.events==2)
 assert(response.result.events[1].kind=='engineer_damaged')
 assert(response.result.events[2].kind=='engineer_died')
 print('Combat observation, missing causes and charted boundaries passed')
+-- Remote owned infrastructure interrupts production at the event tick while
+-- preserving the native guard, even when Python is not polling.
+local force={};local surface={index=1}
+character.valid=true;character.type='character';character.surface=surface
+character.force=force;character.unit_number=12
+local owner={force=force};game.get_player=function()return owner end
+local s=storage.agent;s.owner=1;s.guard={enabled=true,active=false};s.current='work'
+s.jobs.work={id='work',status='running',index=1,actions={},metrics={}}
+local belt={valid=true,unit_number=99,name='transport-belt',type='transport-belt',
+  position={x=100,y=0},force=force,surface=surface,health=140}
+handlers[1]{entity=belt,final_damage_amount=10,cause=cause}
+assert(s.jobs.work.status=='cancelled' and s.jobs.work.finished_tick==game.tick)
+assert(s.jobs.work.error=='factory_defense_interrupt' and s.guard.enabled)
+assert(s.last_factory_damage.id==99 and not s.last_factory_damage.cause)
+local seq=s.sequence
+belt.force={};handlers[1]{entity=belt,final_damage_amount=10};assert(s.sequence==seq)
+belt.force=force;s.jobs.work.status='running';s.jobs.work.defense=true
+handlers[2]{entity=belt};assert(s.last_factory_damage.kind=='destroyed')
+assert(s.jobs.work.status=='running', 'Do not repeatedly cancel the response journey')
+request={op='interrupt',id='wrong'};command{parameter='{}'}
+assert(not response.ok and s.jobs.work.status=='running' and s.guard.enabled)
+request={op='interrupt',id='work'};command{parameter='{}'}
+assert(response.ok and s.jobs.work.status=='cancelled' and s.guard.enabled)
+request={op='cancel',id='work'};command{parameter='{}'}
+assert(response.ok and not s.guard.enabled, 'User stop still disables guard')
+s.guard.enabled=true;local sequence=s.sequence
+belt.surface={index=2};handlers[1]{entity=belt,final_damage_amount=10}
+assert(s.sequence==sequence,'Other surfaces are outside the current factory observation scope')
+belt.surface=surface;s.guard.enabled=false;s.jobs.work.status='running';s.jobs.work.defense=false
+handlers[1]{entity=belt,final_damage_amount=10}
+assert(s.jobs.work.status=='running','Disabled guard must not take control')

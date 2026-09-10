@@ -12,6 +12,19 @@ class FactoryDefense:
     def __init__(self, state=None):
         self.state=state or {'health':{},'tick':None,'alarm':None}
 
+    def event(self, record):
+        """Accept bounded native owned-building evidence, including destruction."""
+        seq=record.get('seq',0)
+        if seq<=self.state.get('event_seq',0):
+            return False
+        self.state['event_seq']=seq
+        alarm=self.state.get('alarm')
+        damage={d['id']:d for d in (alarm or {}).get('damage',[])}
+        damage[record['id']]=dict(record)
+        self.state['alarm']=dict(tick=max(record['tick'],(alarm or {}).get('tick',0)),
+            damage=list(damage.values())[-32:])
+        return True
+
     def observe(self, factory):
         tick=factory['tick']
         if self.state['tick'] is not None and tick<self.state['tick']:

@@ -445,3 +445,47 @@ class AutopilotTests(unittest.TestCase):
         p=Planner({'target':'military-2','sites':sites});p.refresh(o,f,{'enabled_recipes':['logistic-science-pack']})
         self.assertEqual(p.ensure('logistic-science-pack',20)['key'],'approach:ready')
         self.assertEqual(p.service_intent['action']['type'],'take')
+
+    def test_one_item_deficit_does_not_send_tiny_remote_pickup(self):
+        s=dict(site('gear'),entity='assembling-machine-1',recipe='iron-gear-wheel',batch_size=50)
+        p=Planner({'target':'military-2','sites':[s]})
+        e=dict(name=s['entity'],position=s['position'],type='assembling-machine',recipe=s['recipe'],
+               input=[{'name':'iron-plate','count':100}],output=[{'name':'iron-gear-wheel','count':1}],crafting=True)
+        p.refresh(observation(),{'entities':[e]},{'enabled_recipes':['iron-gear-wheel']})
+        self.assertIsNone(p.ensure('iron-gear-wheel',1))
+        o=observation();o['position']=s['stand']
+        p.refresh(o,{'entities':[e]},{'enabled_recipes':['iron-gear-wheel']})
+        self.assertEqual(p.ensure('iron-gear-wheel',1)['actions'][0]['type'],'take')
+
+    def test_chest_limit_is_applied_before_optional_production(self):
+        s=dict(site('stock'),entity='wooden-chest',chest_slots=2)
+        p=Planner(dict(target='defense',sites=[s]))
+        o=observation();o['position']=s['stand']
+        f=dict(researched=[],entities=[dict(name=s['entity'],position=s['position'],type='container',chest_slots=16)])
+        choice=p.choose(o,f,{'enabled_recipes':[]})
+        self.assertEqual(choice['actions'][0]['type'],'limit_chest')
+        self.assertEqual(choice['actions'][0]['slots'],2)
+        f['entities'][0]['chest_slots']=2
+        self.assertIsNone(p.choose(o,f,{'enabled_recipes':[]}))
+
+    def test_native_factory_interrupt_reconciles_without_failure_or_guard_reset(self):
+        g=FakeGame();j=MemoryJournal();g.o['version']='0.8.0';g.f['tick']=100
+        station=dict(id='station',entity='gun-turret',position=dict(x=100,y=0),stand=dict(x=98,y=0))
+        g.f['entities']=[dict(id=2,name='gun-turret',type='ammo-turret',position=station['position'],
+                             health=400,ammo=[dict(name='firearm-magazine',count=20)])]
+        g.pending=dict(id='interrupted',status='cancelled',error='factory_defense_interrupt',started_tick=90,finished_tick=100)
+        g.o['job']=g.pending
+        j.state['pending']=dict(id='interrupted',key='approach:work',actions=[dict(type='walk',x=200,y=0)])
+        original=g.request
+        def request(op,**kw):
+            if op=='status' and 'id' not in kw:
+                return dict(sequence=1,events=[],last_factory_damage=dict(seq=1,tick=100,id=3,
+                    entity='transport-belt',position=dict(x=102,y=0),kind='destroyed'))
+            return original(op,**kw)
+        g.request=request
+        r=Runner(g,Planner(dict(target='defense',sites=[station],defense_stations=['station'])),j)
+        self.assertFalse(r.poll());self.assertEqual(dict(r.failures),{})
+        self.assertFalse(r.poll())
+        submits=[kw for op,kw in g.calls if op=='submit']
+        self.assertEqual(len(submits),1);self.assertTrue(submits[0]['defense'])
+        self.assertFalse(any(op in ('cancel','guard') for op,_ in g.calls))

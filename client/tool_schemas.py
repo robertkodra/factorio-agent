@@ -1,4 +1,4 @@
-"""Bounded MCP tool contracts for controller 0.6.0, with no generic operation tool.
+"""Bounded MCP tool contracts for controller 0.8.0, with no generic operation tool.
 
 These schemas restrict shape and bounds. The mod remains authoritative for
 unlocks, item costs, reach, collision, ownership, and all gameplay preconditions.
@@ -53,6 +53,7 @@ ACTIONS = [
     action("set_recipe", dict(**ENTITY, recipe=NAME), ("x", "y", "recipe")),
     action("rotate", ENTITY, ("x", "y")),
     action("wait_ticks", dict(ticks=TICKS), ("ticks",)),
+    action("limit_chest", dict(**ENTITY, slots=integer(0,1000)), ("x","y","entity","slots")),
     action("launch", ENTITY, ("x", "y", "entity")),
 ]
 
@@ -86,18 +87,21 @@ TOOLS = {
               "Optional rally must be within 64 tiles on charted terrain; this does not establish route safety. "
               "Interrupts remaining production work on nearby visible threats, recent damage or critical health. "
               "Does not equip missing items, model acid, or guarantee survival. Default off. Cancel disables it."),
-    "submit": (obj(dict(id=NAME, actions=dict(type="array", minItems=1, maxItems=512,
+    "submit": (obj(dict(id=NAME, defense=dict(type="boolean"), actions=dict(type="array", minItems=1, maxItems=512,
                                              items=dict(oneOf=ACTIONS))), ("id", "actions")),
                "Submit one item-funded, tick-executed batch and return immediately. One active job. "
                "Use a stable unique id; same id/actions retrieves existing work, changed actions conflict. "
                "A failure preserves completed steps. After a lost reply, query status with the SAME id; "
                "never resubmit with a new id. Cancellation of an MCP call does not stop a game job. "
+               "Optional defense marks response work exempt from remote factory interruption, not local combat. "
                "Use cancel explicitly; queued hand crafting continues. All durations are game ticks."),
     "status": (obj(dict(id=NAME, after=integer(0, 9007199254740991))),
                "Read a job by id (or current job), including up to 100 events after a sequence cursor. "
                "Retains last_damage/last_death after engineer death; exposes guard state and events_lost. "
                "To page events use the last returned event seq, not the overall sequence. "
                "A client timeout does not stop the game. Reconcile uncertain submissions here."),
+    "interrupt": (obj(dict(id=NAME), ("id",)),
+                  "Preempt the exact active job while preserving the local combat guard. Requires controller 0.8.0."),
     "cancel": (obj(dict(id=NAME)),
                "Stop the remaining active batch and walking/mining. Pass its id to guard against "
               "cancelling another job. Also disables the reflex guard. Completed actions and queued hand crafting remain."),
