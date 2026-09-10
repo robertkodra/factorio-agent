@@ -16,15 +16,20 @@ class AgentError(RuntimeError):
     pass
 
 
+class AgentRejected(AgentError):
+    """The controller returned a definite rejection, rather than a lost reply."""
+
+
 class Agent:
     def __init__(self, host="127.0.0.1", port=27016, password_file=None, timeout=5):
         password_file = Path(password_file or ROOT / "runtime/rcon-password")
+        password = password_file.read_text().strip()
         self.sock = socket.create_connection((host, port), timeout=timeout)
-        self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.lock = threading.Lock()
         self.next_id = 1
-        self.sock.sendall(self._packet(1, 3, password_file.read_text().strip()))
         try:
+            self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            self.sock.sendall(self._packet(1, 3, password))
             for _ in range(3):
                 rid, kind, _ = self._read_packet()
                 if rid == -1:
@@ -78,12 +83,16 @@ class Agent:
                 if kind != 0 or response_id != rid:
                     raise AgentError("Unexpected RCON response type or ID")
                 response = json.loads(data)
+                if (not isinstance(response, dict) or type(response.get("ok")) is not bool
+                        or (response["ok"] and "result" not in response)
+                        or (not response["ok"] and not isinstance(response.get("error"), str))):
+                    raise AgentError("Invalid controller response envelope")
             except BaseException:
                 # Never replay a mutating command after an uncertain transport failure.
                 self.close()
                 raise
         if not response.get("ok"):
-            raise AgentError(response.get("error", "Controller rejected request"))
+            raise AgentRejected(response["error"])
         return response["result"]
 
     def run(self, plan, poll=0.25, deadline=180):

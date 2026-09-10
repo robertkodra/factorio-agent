@@ -23,6 +23,11 @@ Controller 0.2.0 adds fixed `factory` and `research_state` observations. The old
 
 These are application safeguards, not a tamper-proof sandbox: a machine owner with the server password can still administer Factorio outside the approved client. The tools must not do so. Additional enforcement is needed for all player modifiers, map settings, recipe identity, research-consumption events, and exact placement/event accounting. Keep those limits visible until tested.
 
+Controller 0.3.2 adds charted water/pollution observations, bounded local placement
+preflight, a path-progress watchdog and item-funded turret ammunition transfers.
+Crafting uses the owning player's normal queue and logs native completion events;
+it never grants a missing unlock or repairs research statistics by writing them.
+
 Game implementation inside a reviewed mod is Lua; the prohibition concerns arbitrary console execution and mechanics bypasses. This remains a mod-controlled, tool-assisted category even when all normal costs and timing are respected.
 
 ## Baselines and milestones

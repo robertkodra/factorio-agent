@@ -1,0 +1,4 @@
+# Optional MCP facade; the original command-line clients need no packages.
+# Python 3.10 or newer. Tested with Python 3.12.
+mcp==2.2.0
+jsonschema==4.26.0

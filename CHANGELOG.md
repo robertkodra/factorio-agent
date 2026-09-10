@@ -1,4 +1,97 @@
+# Controller 0.8.0 development — 2026-09-10
+
+- Added native owned-factory damage/destruction evidence and production preemption
+  that preserves the local guard, plus fixed `interrupt` and normal chest limits.
+- Added bounded stock collection, used-tool transfer regression coverage and
+  explicit checkpoint supply/handcraft recovery options. These are integration
+  experiments, not general factory planning.
+- Corrected the initial defense poll for clocks starting near zero and protected
+  paginated damage events from a newer summary skipping intervening records.
+- Added streaming private cadence analysis, preserving failed receipts and
+  distinguishing native job gaps from reaction latency.
+- Checkpoint practice completed Oil Gathering. No later-science, rocket or new
+  natural-attack validation is claimed. Read the [review response and acceptance
+  gates](knowledge/review-response-001.md) for results and the architecture pivot.
+
+# Controller 0.7.0 development
+
+Typed underground-belt endpoints and owned lane/pair observations; batched belt
+construction, optional normal tree clearing, craft/travel overlap, changing
+factory waypoint checks, furnace-block templates and cadence audits. See
+[the ongoing belt practice](knowledge/belt-production-001.md) for measured
+limitations and retained failures.
+
 # Changes
+
+## Buffered production and fluid observations 0.6.0 — 2026-09-10
+
+- Added fixed static prototype reads, directed native fluid-connection checks, recipe-port mapping and charted mining-target observations.
+- Added ordinary powered smelting and pole-line layouts, stocked recipe buffers, batched construction and bounded natural-resource gathering.
+- Corrected startup power ordering and gathering reach after live failures; preserved those failures and development restarts.
+- Added read-only native craft-rate auditing and observed neutral-obstacle exclusions.
+- Live practice completed Automation 2 through four supplied labs and measured both new electric smelting cells. All 104 tests pass; 24 failed jobs and development recoveries remain recorded. See [the development report](knowledge/production-oil-001.md) for live evidence and remaining oil/rocket work.
+
+## Persistent factory controller 0.5.1 — 2026-09-10
+
+- Added a persistent deterministic supply/research scheduler with private source/plan manifests, durable intentions, reconciliation, trip completion, configured travel corridors and bounded recovery.
+- Added full base-game rocket research/material expansion, joint oil/cracking conservation, optional production-window capacity sizing and relative item-cell plans.
+- Native stack transfers preserve partial ammunition. Normal silo launch is separate from actual launch-event evidence. Factory observations include fluids, power networks, machine status, output and research completion records.
+- Replaced the 256-job hard stop with recent full jobs and durable compact receipts; old IDs retain outcomes and reject conflicting payloads.
+- Live checkpoint practice completed Military 2 through supplied labs, with no new deaths or gameplay pause transitions. The final controller phase completed 592 jobs without an execution failure. All 81 unit tests pass. See [the practice report](knowledge/rocket-controller-001.md) for timings, retained failures, restarts and remaining rocket limitations.
+
+## Live defense validation and controller 0.4.1 — 2026-09-09
+
+- Controller 0.4.0 survived fourteen small biters with native firing and retreat:
+  56 rounds consumed, 44.8 damage, no new deaths or gameplay pauses. See the
+  [practice report](knowledge/live-defense-001.md) for evidence and limits.
+- Fixed shadow-advice invalidation from changing nested sample timestamps and
+  removed observation-clock noise from model prompts. Live response time remains
+  unsuitable for reflex control; accepted advice is still not executed.
+- Source 0.4.1 rejects name/count transfers involving partial magazines before
+  inventory mutation. Native UI handled partial ammunition during practice.
+  The new rejection is unit-tested and installed after the saved practice;
+  the encounter itself used 0.4.0. All 52 tests pass.
+
+## Local Qwen and reflex source 0.4.0 — 2026-09-09
+
+- Added a persistent loopback Ollama selector with durable non-thinking Qwen configuration, strict candidate-ID output and no generated commands. Offline evaluation matched 48/50 expected choices, with 0.694-second median and 1.136-second p95 latency. Both failures at critical health remain recorded.
+- Added a shadow supervisor with independent polling, event cursors, durable private records, one pending inference and stale-advice rejection.
+- Added opt-in tick-local bullet defense source using normal equipped weapon and movement inputs; danger cancels remaining production, while explicit stop disables defense. Added current-visibility filtering and event-loss metadata. Mod installation and live survival/performance checks remain pending.
+- See the [implementation and evidence report](knowledge/local-controller-001.md). No model training, live restart, or rocket milestone is claimed.
+
+## Failed rocket attempt and damage observations — 2026-09-09
+
+- Stopped and preserved the fresh attempt at the user's request after two deaths. The user observed biters attacking; long travel batches and ignored critical health readings were the operational failures. See the [failure review](knowledge/rocket-attempt-001-review.md).
+- Source 0.3.3 records normal engineer damage/death events and retains their evidence in `status` after character loss. Uncharted attacker identity/location are omitted. It makes no changes to combat, health or pause behavior.
+- All 42 unit tests pass, including event wiring, post-death status and observation boundaries. The update is not installed or live-tested; the game remains stopped.
+
+## Speedrun preparation and checkpoint rehearsal — 2026-09-09
+
+- Added a staged route and repeatable Military 2 test protocol based on the speedrun study and the pinned recipe catalog. A read-only capacity/fuel calculator exposes metal deficits before expanding science.
+- A current-policy checkpoint continuation produced 30 automatic red packs, completed Electric mining drill through labs and recovered an exhausted iron line using normal mining and placement. The full record retains one failed batch, six completed batches and twenty pause transitions; it is not a fresh speedrun.
+- Two red assemblers produced 24 packs in a 124.15-second sample, or 11.60 packs/minute. Hand-crafted gears and batch supplies limit the result; green-consuming research and live combat remain pending. See the [preparation report](knowledge/speedrun-preparation.md).
+- Five capacity/fuel tests were added. Controller source and transport are unchanged.
+
+## Enemy-enabled learning and controller 0.3.2 — 2026-09-09
+
+- Added a sourced strategy playbook and research/defense budgets, with explicit limits for old speedrun guides and version-specific recipes.
+- A fresh development attempt established burner production, steam power, two labs, Automation, Gun turret and one turret with ten magazines. The [learning report](knowledge/learning-001.md) preserves two cancelled/five failed batches, three controller upgrades, pauses and recovery. Automated science and live combat remain pending.
+- Fixed native crafting progression through player ownership, bounded navigation oscillation, and added charted water/pollution observations, local placement checks and explicit character/turret ammo inventories. Ordered craft budgeting accounts for the cost of new crafts even when a product already exists.
+- All 36 unit tests and the isolated historical reload/MCP check passed. A current six-tool live sample measured 16.90 ms median engineer observations and 33.43 ms placement checks; 635 logged benchmark calls had no errors. These are local response measurements, not autonomous gameplay or frame-pacing results.
+
+## Live responsiveness and batch validation — 2026-09-09
+
+- Tested the Steam client against a fresh 2.0.77 map: the 29-action conveyor opening completed in 7,504 ticks, with 12 consecutive belt-placement ticks and normal crafting/walking overlap. Twenty moving-job cancellations and a live MCP reconnect passed.
+- Measured roughly 17 ms median observation responses. A paired comparison reduced the 512-action submission median from 88.72 ms to 38.67 ms by selecting the action schema from its required type discriminator, preserving the full advertised validation contract. All 25 tests pass, including validation-equivalence coverage.
+- Added an explicit live benchmark harness that keeps raw results under runtime and a [reviewed aggregate report](knowledge/responsiveness-001.md). The fresh test checkpoint is private; no new science or rocket milestone is claimed.
+
+## MCP connection — 2026-09-09
+
+- Added an optional local stdio MCP server using the official Python SDK, with 13 fixed tools, strict per-action schemas, and a persistent RCON connection. Existing CLI clients retain their standard-library-only setup.
+- Added explicit dropped-response reconciliation by job ID, no automatic mutation replay, responsive tool discovery, and distinction between definite controller rejection and uncertain transport failure.
+- Added MCP SDK/stdio/socket tests and an optional `--mcp` historical fixture check. The live check passed initialization with protocol 2025-11-25, observation, invalid-action rejection, and submit/status/cancel on an isolated copy in Factorio 2.0.77. Tick, engineer position, inventory, and the source save hash were preserved.
+- The first live attempt correctly failed the mod policy because omitted bundled expansions defaulted to enabled. Setup and isolated tests now explicitly disable Space Age, Quality, and Elevated Rails; the subsequent live test verified only base and controller were active. The failed attempt's private runtime directory is retained.
+- No controller Lua or gameplay milestone changed. Fresh G0/G1, green-consuming research, robust navigation, sustained supply planning, and later science/robots/rocket remain pending.
 
 ## Public source publication — 2026-09-09
 

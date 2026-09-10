@@ -16,6 +16,13 @@ MOD_VERSION = json.loads((ROOT / "mod/codex-controller/info.json").read_text())[
 MOD_DIRECTORY = "codex-controller_" + MOD_VERSION
 
 
+def controller_mod_list():
+    # Bundled expansions can default to enabled when absent from mod-list.json.
+    return {"mods": [{"name": name, "enabled": enabled} for name, enabled in (
+        ("base", True), ("codex-controller", True),
+        ("space-age", False), ("quality", False), ("elevated-rails", False))]}
+
+
 def setup():
     if not (GAME / "MacOS/factorio").is_file():
         raise SystemExit("Install Factorio through Steam before setup; see HANDOFF.md")
@@ -29,9 +36,14 @@ def setup():
         password.chmod(0o600)
     config = f"[path]\nread-data={GAME / 'data'}\nwrite-data={RUNTIME / 'server'}\n\n[general]\nlocale=en\n"
     (RUNTIME / "server/config.ini").write_text(config)
-    mods = {"mods": [{"name": "base", "enabled": True}, {"name": "codex-controller", "enabled": True}]}
+    mods = controller_mod_list()
     (RUNTIME / "mods/mod-list.json").write_text(json.dumps(mods, indent=2))
     link = RUNTIME / "mods" / MOD_DIRECTORY
+    # Old managed symlinks point at the same source; leaving both after a version
+    # bump makes Factorio see duplicate copies of the new version.
+    for previous_link in (RUNTIME / "mods").glob("codex-controller_*"):
+        if previous_link != link and previous_link.is_symlink() and previous_link.resolve() == ROOT / "mod/codex-controller":
+            previous_link.unlink()
     if not link.exists():
         link.symlink_to(ROOT / "mod/codex-controller", target_is_directory=True)
     settings = {"name": "Codex Performance Test", "description": "Local vanilla tick controller benchmark", "max_players": 1, "visibility": {"public": False, "lan": False}, "require_user_verification": False, "allow_commands": "false", "autosave_interval": 0, "auto_pause": True, "auto_pause_when_players_connect": False, "minimum_latency_in_ticks": 0, "max_heartbeats_per_second": 60, "only_admins_can_pause_the_game": True}
@@ -43,12 +55,11 @@ def setup():
     if not backup.exists() and previous.exists():
         shutil.copy2(previous, backup)
     enabled = json.loads(previous.read_text()) if previous.exists() else {"mods": []}
-    found = False
+    found = set()
     for entry in enabled["mods"]:
         entry["enabled"] = entry["name"] in ("base", "codex-controller")
-        found |= entry["name"] == "codex-controller"
-    if not found:
-        enabled["mods"].append({"name": "codex-controller", "enabled": True})
+        found.add(entry["name"])
+    enabled["mods"].extend(entry for entry in mods["mods"] if entry["name"] not in found)
     previous.write_text(json.dumps(enabled, indent=2))
     link = client_mods / MOD_DIRECTORY
     # The Steam GUI may lack macOS access to Desktop. Keep a real installed copy.

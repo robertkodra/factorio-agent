@@ -13,9 +13,20 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          # Audit the submitted source history, not GitHub's synthetic PR merge
+          # metadata (whose generated identity may violate the publication rule).
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Unit tests
+      - name: Install optional MCP dependencies
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install -r requirements-mcp.txt
+      - name: Install Lua for navigation trace tests
+        run: sudo apt-get update && sudo apt-get install -y lua5.2
+      - name: Unit tests including MCP stdio and RCON recovery
+        run: .venv/bin/python -m unittest discover -s tests -v
+      - name: Standard-library client tests
         run: python3 -m unittest discover -s tests -v
       - name: Scan tracked files and reachable history
         run: python3 scripts/check_publication.py --history
