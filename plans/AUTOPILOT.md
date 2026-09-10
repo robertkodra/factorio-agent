@@ -137,3 +137,17 @@ stance-based navigation for that site. This does not affect mining or building.
 Lab supplies prioritize the scarcest required colour across the configured labs.
 Available intermediate pickups are batched to reduce repeated collection trips.
 Neither policy guarantees continuous research without connected ingredient flow.
+
+`defense_stations` lists configured gun-turret site IDs. With stations configured,
+owned-building health is sampled even during a pending job. New damage interrupts
+production and dispatches to a loaded station within 36 tiles of the damage.
+An uncovered alarm holds normal scheduling and is logged. Use `target: defense`
+for a persistent watch, or `watch_after_target: true` to retain monitoring after
+the normal milestone. Process deadlines still apply. See the
+[failure and limits](../knowledge/factory-defense-001.md); polling is not a native
+destruction-event feed. Keep exactly one executor during any plan handoff.
+
+Fuel and ammunition maintenance retain priority over construction. Optional
+production-buffer refills follow construction selection, so a hungry distant
+buffer cannot preempt every build; when a needed construction component is
+unavailable, upstream buffer feeding can still unblock it.

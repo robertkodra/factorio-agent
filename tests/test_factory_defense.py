@@ -1,0 +1,33 @@
+import unittest
+from client.factory_defense import FactoryDefense
+
+
+def factory(tick,health):
+    return dict(tick=tick,entities=[dict(id=1,name='transport-belt',type='transport-belt',
+        health=health,position=dict(x=100,y=100)),dict(id=2,name='gun-turret',type='ammo-turret',
+        health=400,position=dict(x=98,y=98),ammo=[dict(name='firearm-magazine',count=20)])])
+
+
+class FactoryDefenseTests(unittest.TestCase):
+    def test_remote_damage_detected_without_engineer_damage_and_repair_is_not_attack(self):
+        d=FactoryDefense()
+        self.assertEqual(d.observe(factory(10,100)),[])
+        self.assertEqual(d.observe(factory(40,90))[0]['lost'],10)
+        self.assertEqual(d.observe(factory(70,100)),[])
+        self.assertEqual(d.state['alarm']['tick'],40)
+
+    def test_dispatch_requires_loaded_station_and_holds_until_quiet(self):
+        d=FactoryDefense();d.observe(factory(10,100));f=factory(40,90);d.observe(f)
+        site=dict(id='station',entity='gun-turret',position=dict(x=98,y=98),stand=dict(x=96,y=98))
+        plan=dict(sites=[site],defense_stations=['station'])
+        o=dict(position=dict(x=0,y=0),tick=40)
+        self.assertEqual(d.response(o,f,plan)['actions'][0]['type'],'walk')
+        o['position']=site['stand'];self.assertEqual(d.response(o,f,plan)['key'],'factory-defense:hold')
+        o['tick']=641;self.assertIsNone(d.response(o,f,plan));self.assertIsNone(d.state['alarm'])
+        d.observe(factory(650,80));f['entities'][1]['ammo']=[]
+        self.assertEqual(d.response(o,f,plan)['key'],'factory-defense:uncovered')
+
+    def test_removed_entity_is_not_invented_damage_event(self):
+        d=FactoryDefense();d.observe(factory(10,100))
+        self.assertEqual(d.observe(dict(tick=20,entities=[])),[])
+        with self.assertRaises(RuntimeError):d.observe(factory(19,100))

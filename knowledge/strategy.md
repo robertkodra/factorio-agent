@@ -107,6 +107,38 @@ must be calibrated from consumption and travel time, not treated as game rules.
 
 ## Decision loop
 
+Factory-wide damage must preempt production even when the engineer is healthy.
+The [remote-attack failure](factory-defense-001.md) demonstrates why a quiet local
+reflex is insufficient. Keep a continuous watch during planning and between
+production phases, and place loaded defenses along vulnerable supply approaches.
+
+### Early combat study
+
+The user's SMG, grenade and kiting advice agrees with the historical
+[Phredward / AntiElitz default-settings guide](https://www.speedrun.com/factorio/guides/li2kd).
+Its cached slide text explicitly calls for turret/grenade fighting, a grenade
+assembler after Military 2, and carrying combat supplies when establishing oil.
+It later mentions car and landmine tactics. This supports studying those tools;
+it does not prove that the old route is optimal under 2.0.77.
+
+An ordinary grenade kills small biters in one hit. Medium enemies need more
+damage, so do not use enemy colour alone as a throw policy. Test grouping,
+minimum separation, escape space and nearby factory exposure before releasing a
+grenade. Normal grenade use and this kiting controller are not implemented yet.
+[Grenade mechanics](https://wiki.factorio.com/Grenade),
+[enemy health and resistance](https://wiki.factorio.com/Enemies).
+
+Flamethrower turrets can use crude oil directly, but need a working pipe supply
+and suitable coverage for their firing arc and minimum range. Compare their
+complete setup cost and avoided losses against gun/ammunition upgrades and
+lasers; do not assume that lasers are the required response to big biters.
+[Flamethrower turret](https://wiki.factorio.com/Flamethrower_turret).
+
+The refreshed closest reference is [Zaspar's Default Settings 1:59:01 on 2.0.77](https://www.speedrun.com/factorio/runs/yvk04e8m).
+Its run metadata is verified; the full combat segments have not been reviewed.
+
+### Execution
+
 Keep the local executor responsible for routine construction and supply while
 the strategic planner thinks. Queue normal handcrafting without holding the
 engineer in an explicit await job, and approach the next site while its item is

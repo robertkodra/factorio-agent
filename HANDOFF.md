@@ -12,12 +12,30 @@ Read [POLICY.md](POLICY.md), [ROADMAP.md](ROADMAP.md), and [knowledge/README.md]
 
 ## Current development — controller 0.7.0
 
+Read [the remote factory-attack failure and response](knowledge/factory-defense-001.md)
+first. The coal conveyor was attacked while attention was on construction. Its
+lost tiles were replaced and the loaded turret relocated. Two additional turrets
+now receive ammunition from that center turret through powered long-handed
+inserters. Live inventories showed ten magazines in each outer turret and twenty
+in the center. This verifies distribution, not performance under fire. A persistent
+factory defense watch now owns the executor; inspect its live handle/journal before any
+new gameplay. The game remains unpaused. Preserve the failed response and damage
+records. New polling/dispatch code passes unit tests but has not faced another
+measured real attack. Native factory events and grenade use remain unimplemented.
+
+Advanced material processing and Fast inserter completed through labs. The mall
+now has iron/gear/circuit/cable transport, but copper input still needs carrying.
+The additional boiler/engines were constructed; their coal feed remains blocked
+by a conveyor approach that needs correction, so do not count expanded power as
+operational. Engine research has started; later oil/science and the rocket remain.
+
 Read [belt-fed production development](knowledge/belt-production-001.md) and the
 updated [strategy](knowledge/strategy.md). Controller 0.7.0 is installed and its
 underground crossing and continuous iron return were verified live. The 0.6.0
 ledger closed with its failures preserved; a new checkpoint continuation is
-open. Check live server identity and active journals before continuing. A single
-production scheduler is feeding science while the game remains unpaused.
+open. Check live server identity and active journals before continuing. The single
+scheduler currently watches defense and replenishes ammunition after completing
+the turret cluster; science supply needs resuming in its next production plan.
 Next are connected copper/construction supplies and fewer ingredient trips.
 Do not assume the older stopped states below still apply.
 

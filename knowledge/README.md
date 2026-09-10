@@ -1,5 +1,9 @@
 # Factorio knowledge base
 
+Latest failure and correction: [remote factory attack and continuous defense watch](factory-defense-001.md).
+Engineer-local combat missed damage to the coal supply. Keep this limitation and
+the actual losses visible when judging the newer controller.
+
 Current development: [belt-fed production and cadence](belt-production-001.md).
 The updated strategy adopts a fast hand-fed bootstrap before planned furnace
 blocks and a bus. Historical stopping points below remain historical.
