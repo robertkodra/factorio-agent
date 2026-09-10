@@ -1,7 +1,7 @@
 # Gameplay strategy and evidence
 
 Scope: base Factorio **2.0.77**, normal mechanics, enemies enabled, one engineer.
-Last source review: **2026-09-09**. This is a working playbook, not a proven
+Last source review: **2026-09-10**. This is a working playbook, not a proven
 rocket route. Use the installed catalog for costs and the live world for state.
 
 ## What to learn from experienced players
@@ -59,6 +59,34 @@ readiness. Do not compensate by revealing the map or spawning targets.
 
 ## Opening to test
 
+The experienced-player feedback from the current practice changes our priority:
+bootstrap abundant plates quickly with hand-fed burner mining and smelting,
+then use assemblers for gears, circuits and construction supplies before paying
+for long transport runs. The current checkpoint retrofit is a development
+exercise, not the intended fresh-map opening. Do not copy its long empty belts
+and repeated cross-factory supply trips into the opening route.
+
+Reserve the eventual iron, copper and steel corridors before filling the space
+with temporary cells. Start an expandable 12-by-2 furnace block when ore,
+construction supplies, fuel and power can support it; expand or upgrade according
+to measured demand. Leave room for additional iron lines, copper and later steel,
+with branches for science and a compact construction supply area. Two or three
+iron lines and one copper line are planning options, not a demonstrated optimal
+rocket factory. Defense and engineer access must fit the same layout.
+
+At normal quality without bonuses, 24 stone furnaces nominally produce 7.5
+iron/copper plates per second; 48 produce 15. Upgrading the 24 to steel furnaces
+raises nominal output to 15, the capacity of a yellow belt. These are calculated
+capacities assuming both output lanes, ore, fuel and power are adequately
+supplied, not measured output from this agent.
+[Furnace rates](https://wiki.factorio.com/Stone_furnace),
+[steel furnace](https://wiki.factorio.com/Steel_furnace),
+[belt capacity](https://wiki.factorio.com/Transport_belt).
+
+The layout library now contains opposing 12-by-2 and 24-by-2 templates. Their
+geometry is unit-tested; these full blocks have not yet passed a live run.
+The smaller eight-furnace row is the current integration fixture.
+
 1. Record the fresh map, settings, source identity, starting inventory and ticks.
    Scout accessible rock, coal, iron, copper, water and visible threats.
 2. Use rock products to start direct iron smelting. Reinvest early plates in
@@ -78,6 +106,51 @@ an empty fuel buffer can take priority over research. Numeric reserve thresholds
 must be calibrated from consumption and travel time, not treated as game rules.
 
 ## Decision loop
+
+Factory-wide damage must preempt production even when the engineer is healthy.
+The [remote-attack failure](factory-defense-001.md) demonstrates why a quiet local
+reflex is insufficient. Keep a continuous watch during planning and between
+production phases, and place loaded defenses along vulnerable supply approaches.
+
+### Early combat study
+
+The user's SMG, grenade and kiting advice agrees with the historical
+[Phredward / AntiElitz default-settings guide](https://www.speedrun.com/factorio/guides/li2kd).
+Its cached slide text explicitly calls for turret/grenade fighting, a grenade
+assembler after Military 2, and carrying combat supplies when establishing oil.
+It later mentions car and landmine tactics. This supports studying those tools;
+it does not prove that the old route is optimal under 2.0.77.
+
+An ordinary grenade kills small biters in one hit. Medium enemies need more
+damage, so do not use enemy colour alone as a throw policy. Test grouping,
+minimum separation, escape space and nearby factory exposure before releasing a
+grenade. Normal grenade use and this kiting controller are not implemented yet.
+[Grenade mechanics](https://wiki.factorio.com/Grenade),
+[enemy health and resistance](https://wiki.factorio.com/Enemies).
+
+Flamethrower turrets can use crude oil directly, but need a working pipe supply
+and suitable coverage for their firing arc and minimum range. Compare their
+complete setup cost and avoided losses against gun/ammunition upgrades and
+lasers; do not assume that lasers are the required response to big biters.
+[Flamethrower turret](https://wiki.factorio.com/Flamethrower_turret).
+
+The refreshed closest reference is [Zaspar's Default Settings 1:59:01 on 2.0.77](https://www.speedrun.com/factorio/runs/yvk04e8m).
+Its run metadata is verified; the full combat segments have not been reviewed.
+
+### Execution
+
+Keep the local executor responsible for routine construction and supply while
+the strategic planner thinks. Queue normal handcrafting without holding the
+engineer in an explicit await job, and approach the next site while its item is
+being crafted. At arrival, recheck native stock; do not oscillate between nearby
+unfinished sites. Belt batches must preflight every included tile before any
+placement is submitted. On an observed tree obstruction, a configured belt plan
+may normally mine that tree and reobserve; other obstructions need correction.
+
+Measure the full distribution of time between jobs, including process downtime,
+recovery and interventions. A low median hides long stalls. Report idle time and
+long-tail gaps separately from walking, crafting and build execution time with
+`client.cadence`. Do not call native execution time model inference latency.
 
 Observe → identify the limiting supply or risk → budget a short batch → execute
 while existing machines work → verify the intended change → update the record.

@@ -4,6 +4,38 @@ from client.layouts import assembly_cell
 
 
 class LayoutTests(unittest.TestCase):
+    def test_opposing_furnace_rows_share_one_output_without_duplicate_placements(self):
+        from client.layouts import smelting_block
+        for n in (12,24):
+            b=smelting_block('iron-plate',n,(10,20))
+            self.assertEqual(b['materials']['stone-furnace'],2*n)
+            positions=[(s['position']['x'],s['position']['y']) for s in b['sites']]
+            self.assertEqual(len(positions),len(set(positions)))
+            outputs=[s for s in b['sites'] if s['entity']=='transport-belt' and s['position']['y']==22.5]
+            self.assertEqual(len(outputs),3*(n-1)+1)
+            top=[s for s in b['sites'] if s['entity']=='inserter' and s['position']['y']==21.5]
+            bottom=[s for s in b['sites'] if s['entity']=='inserter' and s['position']['y']==23.5]
+            self.assertTrue(all(s['direction']=='north' for s in top))
+            self.assertTrue(all(s['direction']=='south' for s in bottom))
+
+    def test_smelting_row_has_separate_inputs_outputs_and_pole_coverage(self):
+        from client.layouts import smelting_row
+        row = smelting_row('iron-plate', 8)
+        self.assertEqual(row['materials']['stone-furnace'], 8)
+        self.assertEqual(row['materials']['inserter'], 16)
+        sites = {s['id']:s for s in row['sites']}
+        for i in range(8):
+            f = sites[f'row-{i}-furnace']['position']
+            p = sites[f'row-{i}-pole']['position']
+            for label, offset in [('input-arm',-1.5),('output-arm',1.5)]:
+                a=sites[f'row-{i}-{label}']['position']
+                self.assertEqual(a['y']-f['y'],offset)
+                self.assertLessEqual(abs(a['x']-p['x']),2.5)
+                self.assertLessEqual(abs(a['y']-p['y']),2.5)
+            self.assertGreater(p['x'],f['x']+1)
+            self.assertLess(p['x'],f['x']+2)
+        self.assertEqual(row['ports']['mixed_input'],{'x':21.5,'y':-2.5})
+
     def test_cell_costs_and_ports_translate_together(self):
         a=assembly_cell('automation-science-pack')
         b=assembly_cell('automation-science-pack',(24,-16))

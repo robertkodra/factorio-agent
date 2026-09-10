@@ -38,6 +38,13 @@ def load_plan(path):
         raise ValueError('Expected version 1 plan with sites')
     if type(plan.get('construction_batch_size',1)) is not int or not 1<=plan.get('construction_batch_size',1)<=20:
         raise ValueError('Construction batch size must be 1-20')
+    if type(plan.get('clear_belt_trees',False)) is not bool:
+        raise ValueError('clear_belt_trees must be boolean')
+    if type(plan.get('watch_after_target',False)) is not bool:
+        raise ValueError('watch_after_target must be boolean')
+    radius=plan.get('local_transfer_radius',0)
+    if isinstance(radius,bool) or not isinstance(radius,(int,float)) or not 0<=radius<=3:
+        raise ValueError('Local transfer radius must be between 0 and 3 tiles')
     ids = set()
     for s in plan['sites']:
         if not isinstance(s.get('id'), str) or s['id'] in ids or not isinstance(s.get('entity'), str):
@@ -57,6 +64,8 @@ def load_plan(path):
         if type(source.get('reserve', 0)) is not int or source.get('reserve', 0) < 0:
             raise ValueError('Source reserve must be a nonnegative integer')
     for site in plan['sites']:
+        if 'belt_type' in site and (site['entity'] != 'underground-belt' or site['belt_type'] not in ('input','output')):
+            raise ValueError('belt_type requires a normal underground belt endpoint')
         if 'batch_size' in site and (type(site['batch_size']) is not int or not 1<=site['batch_size']<=100):
             raise ValueError('Cell batch_size must be 1-100')
         for item,minimum in site.get('stock_min',{}).items():
@@ -66,7 +75,14 @@ def load_plan(path):
         for key in ('input_site', 'output_site','input_inserter','output_inserter'):
             if key in site and site[key] not in ids:
                 raise ValueError('Cell buffers must refer to configured sites')
-    if plan.get('target') != 'rocket':
+    if plan.get('target') == 'infrastructure' and not any(s.get('build') for s in plan['sites']):
+        raise ValueError('Infrastructure target requires construction sites')
+    for sid in plan.get('defense_stations',[]):
+        if sid not in ids or next(s for s in plan['sites'] if s['id']==sid)['entity']!='gun-turret':
+            raise ValueError('Defense stations must refer to configured gun turrets')
+    if plan.get('watch_after_target') and not plan.get('defense_stations'):
+        raise ValueError('watch_after_target requires defense stations')
+    if plan.get('target') not in ('rocket', 'infrastructure','defense'):
         research_plan([plan['target']])
     return plan
 
@@ -103,15 +119,28 @@ class Planner:
 
     def at(self, sid, action, detail):
         site = self.sites[sid]
+        p = self.o['position']
+        # Avoid a service-position trip when already close to an owned inventory.
+        # This is only a scheduling shortcut: native can_reach_entity still
+        # decides whether the transfer is legal. A failed approach/transfer
+        # restores stance-based navigation for this site.
+        radius=self.plan.get('local_transfer_radius',0)
+        if (radius and action['type'] in ('put','take') and self.entities.get(sid)
+                and not self.stance_attempts[sid]
+                and math.hypot(p['x']-site['position']['x'],p['y']-site['position']['y'])<=radius):
+            self.service_intent=None
+            return self.skill(detail+':'+sid,
+                [dict(action,entity=site['entity'],**site['position'])],detail)
         # Travel and transfer are separate jobs: re-observe amounts after travel.
         options = service_stances(site, self.f['entities'] + self.f.get('obstacles',[]))
-        p, stand = self.o['position'], options[self.stance_attempts[sid] % len(options)]
+        stand = options[self.stance_attempts[sid] % len(options)]
         key = detail + ':' + sid
         if math.hypot(p['x'] - stand['x'], p['y'] - stand['y']) > .6:
             self.service_intent = dict(sid=sid, action=action, detail=detail)
             return self.skill('approach:' + sid,
                 [dict(type='walk', **point, timeout=3600)
-                 for point in corridor(p, stand, self.plan.get('corridors'))], 'Reach configured service stance')
+                 for point in corridor(p, stand, self.plan.get('corridors'),
+                                      self.f['entities']+self.f.get('obstacles',[]))], 'Reach configured service stance')
         self.service_intent = None
         return self.skill(key, [dict(action, entity=site['entity'], **site['position'])], detail)
 
@@ -204,7 +233,9 @@ class Planner:
                 choice = self.supply_cell(sid, missing, trail)
                 if choice:
                     return choice
-        pickup = max(missing, {'iron-plate':100,'copper-plate':100,'coal':60}.get(item,0))
+        pickup = max(missing, {'iron-plate':100,'copper-plate':100,'coal':60,
+            'iron-gear-wheel':100,'electronic-circuit':100,'copper-cable':200,
+            'transport-belt':100,'inserter':50}.get(item,0))
         def collection_cost(source):
             available=contents(self.entities[source['site']].get(source['inventory']))[item]-source.get('reserve',0)
             stand=self.sites[source['site']]['stand']
@@ -253,7 +284,7 @@ class Planner:
                 self.reason = 'Missing production/supply for ' + ', '.join(budget['missing_base'])
                 return None
             return self.skill('craft:' + item,
-                [dict(type='craft', recipe=item, count=n), dict(type='await_craft', timeout=21600)],
+                [dict(type='craft', recipe=item, count=n)],
                 'Craft available unlocked recipe with actual stock')
         self.reason = 'Waiting for supplied source or configured machine: ' + item
         return None
@@ -324,6 +355,25 @@ class Planner:
         self.reason = 'Waiting for actual machine output: ' + sid
         return None
 
+    def maintain_buffers(self):
+        ordered=sorted(self.sites.items(),key=lambda pair:math.hypot(
+            pair[1]['stand']['x']-self.o['position']['x'],pair[1]['stand']['y']-self.o['position']['y']))
+        for sid,site in ordered:
+            entity=self.entities[sid]
+            if not entity:
+                continue
+            for item,minimum in site.get('stock_min',{}).items():
+                held=contents(entity.get('chest'))[item]
+                if held<minimum:
+                    amount=site['stock_target'][item]-held
+                    if self.stock[item]:
+                        return self.at(sid,dict(type='put',inventory='chest',item=item,
+                            count=min(amount,self.stock[item])),'buffer:'+item)
+                    choice=self.ensure(item,amount)
+                    if choice:
+                        return choice
+        return None
+
     def maintenance(self):
         equipped = sum(s.get('magazines',0) for s in self.o.get('guns',{}).get('slots',[])
                        if s.get('ammo')=='firearm-magazine')
@@ -337,16 +387,6 @@ class Planner:
             entity = self.entities[sid]
             if not entity:
                 continue
-            for item,minimum in site.get('stock_min',{}).items():
-                held=contents(entity.get('chest'))[item]
-                if held<minimum:
-                    amount=site['stock_target'][item]-held
-                    if self.stock[item]:
-                        return self.at(sid,dict(type='put',inventory='chest',item=item,
-                            count=min(amount,self.stock[item])),'buffer:'+item)
-                    choice=self.ensure(item,amount)
-                    if choice:
-                        return choice
             remote = math.hypot(site['stand']['x']-self.o['position']['x'],
                                 site['stand']['y']-self.o['position']['y']) > 24
             nearby_sources = [s for s in self.plan.get('sources', []) if s['inventory']=='output'
@@ -401,15 +441,39 @@ class Planner:
                 continue
             if site.get('build') and (not site.get('recipe') or site.get('eager')) and not self.entities[sid]:
                 if self.stock[site['entity']] < 1:
+                    queued=any(q.get('recipe')==site['entity'] for q in self.o.get('crafting',[]))
+                    if queued:
+                        approach=self.at(sid,dict(type='place',direction=site.get('direction','north'),
+                            **({'belt_type':site['belt_type']} if 'belt_type' in site else {})), 'build')
+                        if approach and all(a['type']=='walk' for a in approach['actions']):
+                            return approach
+                        # Arrival is not permission to place an item that has
+                        # not finished crafting. Reobserve native stock first.
+                        self.service_intent=None
+                        self.reason='At construction site; waiting for native crafting output'
+                        return None
                     remaining=sum(1 for other_id,other in self.sites.items()
                         if other.get('build') and other['entity']==site['entity'] and not self.entities[other_id]
                         and all(t in factory['researched'] for t in other.get('requires',[])))
                     choice = self.ensure(site['entity'], min(remaining,self.plan.get('construction_batch_size',1)))
                 else:
-                    choice = self.at(sid, dict(type='place', direction=site.get('direction','north')), 'build')
+                    choice = self.at(sid, dict(type='place', direction=site.get('direction','north'),
+                        **({'belt_type':site['belt_type']} if 'belt_type' in site else {})), 'build')
                 if choice:
                     return choice
+        # Optional production stock must not preempt every construction step.
+        # Fuel/ammunition still run first; if construction cannot get a needed
+        # component, feeding its upstream buffers can now unblock it.
+        choice=self.maintain_buffers()
+        if choice:
+            return choice
         target = self.plan['target']
+        if target=='defense':
+            self.reason='Factory defense watch is active'
+            return None
+        if target == 'infrastructure':
+            self.reason = 'Infrastructure placed; verify connections and sustained operation separately'
+            return None
         technologies = ['military-2', 'rocket-silo'] if target == 'rocket' else [target]
         pending = research_plan(technologies, factory['researched'])['steps']
         current = factory.get('research')
@@ -436,7 +500,13 @@ class Planner:
             if not labs:
                 self.reason = 'A configured powered lab is required'
                 return None
-            for ingredient in tech['ingredients']:
+            # Balance lab-ready research units across colours. Filling every
+            # red buffer first can postpone green production while all labs
+            # are already blocked on green packs.
+            ingredients=sorted(tech['ingredients'], key=lambda ingredient:
+                sum(contents(lab.get('input'))[ingredient['name']] for _,lab in labs)
+                / ingredient['amount'])
+            for ingredient in ingredients:
                 item = ingredient['name']
                 for sid, lab in sorted(labs, key=lambda p: contents(p[1].get('input'))[item]):
                     held = contents(lab.get('input'))[item]
@@ -513,6 +583,10 @@ class Runner:
             raise RuntimeError('Repeated failures require a corrected plan and a new journal')
         self.planner.service_intent = journal.state.get("service_intent")
         self.planner.consumed_gather.update(journal.state.get("consumed_gather",[]))
+        from .factory_defense import FactoryDefense
+        self.factory_defense=FactoryDefense(journal.state.get('factory_defense'))
+        self.defense_factory=None
+        self.defense_poll_wall=0
 
     def poll(self):
         status = self.game.request('status', **({} if self.cursor.value is None else {'after': self.cursor.value}))
@@ -523,8 +597,10 @@ class Runner:
         self.journal.emit('observation', o)
         if o['paused'] or o['speed'] != 1 or not o.get('guard',{}).get('enabled'):
             raise RuntimeError('Runner requires normal-speed unpaused play with local guard enabled')
-        if o.get('version') != '0.6.0' or o.get('mods',{}).get('base') != '2.0.77':
+        if o.get('version') not in ('0.6.0','0.7.0') or o.get('mods',{}).get('base') != '2.0.77':
             raise RuntimeError('Controller/catalog version mismatch')
+        if o['version']=='0.6.0' and any('belt_type' in s for s in self.planner.sites.values()):
+            raise RuntimeError('Explicit underground endpoints require controller 0.7.0')
         if self.actor is not None and (o['actor_unit'] != self.actor or o['tick'] < self.last_tick):
             raise RuntimeError('Character or world changed; preserve episode and start a new one')
         self.actor, self.last_tick = o['actor_unit'], o['tick']
@@ -533,6 +609,30 @@ class Runner:
         self.journal.state.update(actor=self.actor, last_tick=self.last_tick, started_tick=self.started_tick)
         self.journal.save()
         pending = self.journal.state['pending']
+        # Observe the whole owned factory even while walking/crafting. The
+        # engineer-local reflex does not report remote buildings being attacked.
+        if self.planner.plan.get('defense_stations') and time.monotonic()-self.defense_poll_wall>=.5:
+            self.defense_factory=self.game.request('factory')
+            damage=self.factory_defense.observe(self.defense_factory)
+            self.defense_poll_wall=time.monotonic()
+            self.journal.state['factory_defense']=self.factory_defense.state
+            if damage:
+                self.journal.emit('factory_damage_detected',dict(tick=self.defense_factory['tick'],damage=damage))
+                print('Factory damage detected; defense takes priority',flush=True)
+            self.journal.save()
+        alarm=self.factory_defense.state['alarm']
+        if alarm and pending and not pending['key'].startswith('factory-defense:') and o.get('job',{}).get('status')=='running':
+            # The existing fixed cancel also disables the local guard. Restore
+            # it immediately before doing any new work, preserving its rally.
+            pending['factory_defense_cancelled']=True
+            self.journal.save()
+            guard=o.get('guard',{})
+            try:
+                result=self.game.request('cancel',id=pending['id'])
+                self.journal.emit('factory_defense_preempted',result)
+            finally:
+                self.game.request('guard',enabled=True,**({'rally':guard['rally']} if guard.get('rally') else {}))
+            return False
         if pending:
             job = self.game.request('status', id=pending['id'])
             if job['status'] == 'running':
@@ -546,7 +646,7 @@ class Runner:
                 self.journal.state['consumed_gather']=sorted(self.planner.consumed_gather)
             self.journal.save()
             if job['status'] != 'complete':
-                if job.get('error') != 'defense_interrupt':
+                if job.get('error') != 'defense_interrupt' and not pending.get('factory_defense_cancelled'):
                     self.failures[pending['key']] += 1
                     if pending['key'].startswith('approach:') or 'out_of_reach' in job.get('error',''):
                         sid = pending['key'].rsplit(':',1)[1]
@@ -583,14 +683,41 @@ class Runner:
         f['obstacles']=self.neutral_geometry
         if any(e.get('by_script') for e in f.get('research_events',{}).values()):
             raise RuntimeError('Script-completed research is not a compliant milestone')
-        if self.planner.plan['target'] == 'rocket':
+        if self.planner.plan['target'] == 'infrastructure':
+            from .belt_routes import NATIVE_DIRECTIONS
+            self.planner.refresh(o, f, r)
+            requested = [s for s in self.planner.sites.values() if s.get('build')]
+            done = bool(requested) and all(self.planner.entities[s['id']] and
+                (s['entity'] not in ('transport-belt','underground-belt') or
+                 (self.planner.entities[s['id']].get('direction') == NATIVE_DIRECTIONS[s.get('direction', 'north')]
+                  and (s['entity']!='underground-belt' or self.planner.entities[s['id']].get('belt_type')==s.get('belt_type','input'))))
+                for s in requested)
+        elif self.planner.plan['target']=='defense':
+            done=False
+        elif self.planner.plan['target'] == 'rocket':
             done = any(e['tick'] > self.started_tick for e in f.get('launches', []))
         else:
             done = self.planner.plan['target'] in f['researched']
         if done:
-            self.journal.emit('target_verified', dict(target=self.planner.plan['target'], factory=f))
-            return True
-        choice = self.planner.choose(o, f, r)
+            if not self.journal.state.get('target_verified'):
+                self.journal.emit('target_verified', dict(target=self.planner.plan['target'], factory=f))
+                self.journal.state['target_verified']=True
+                self.journal.save()
+            if not self.planner.plan.get('watch_after_target') and not alarm:
+                return True
+        choice=self.factory_defense.response(o,f,self.planner.plan)
+        if choice and not choice['actions']:
+            self.journal.emit('factory_defense_waiting',choice)
+            return False
+        if not choice:
+            if done or self.journal.state.get('production_suspended'):
+                self.planner.refresh(o,f,r)
+                choice=self.planner.maintenance()
+                self.planner.reason=('Construction suspended; factory defense watch remains active'
+                    if self.journal.state.get('production_suspended') else
+                    'Target verified; factory defense watch remains active')
+            else:
+                choice = self.planner.choose(o, f, r)
         self.journal.state['service_intent'] = self.planner.service_intent
         self.journal.save()
         if not choice:
@@ -599,6 +726,9 @@ class Runner:
                 print(self.planner.reason, flush=True)
                 self.last_reason = self.planner.reason
             return False
+        from .belt_routes import nearby_belt_batch
+        if choice['actions'][0].get('entity') == 'transport-belt' and choice['actions'][0]['type'] == 'place':
+            choice = nearby_belt_batch(choice, self.planner.sites, self.planner.entities, o, f['researched'])
         for action in choice['actions']:
             if action['type']=='mine' and choice['key'].startswith('gather:'):
                 nearby=self.game.request('scan',name=action['entity'],radius=10,limit=100)
@@ -615,7 +745,30 @@ class Runner:
                     for k in ('entity','x','y','direction') if k in action})
                 self.journal.emit('placement_preflight', check)
                 if not check['can_place']:
-                    raise RuntimeError('Configured footprint is blocked: '+choice['key'])
+                    if self.planner.plan.get('clear_belt_trees') and action['entity']=='transport-belt':
+                        from .construction import clear_tree_for_belt
+                        scan=self.game.request('scan',type='tree',radius=10,limit=100)
+                        for tree in scan['entities']:
+                            if tree['name'] not in self.prototypes:
+                                self.prototypes[tree['name']]=self.game.request('prototype',entity=tree['name'])
+                        self.journal.emit('tree_clearance_scan',scan)
+                        recovery=clear_tree_for_belt(action,o,f,scan,self.prototypes)
+                        if recovery and self.planner.blocked_until.get(recovery['key'],0)<=o['tick']:
+                            choice=recovery
+                            break
+                    reason='Configured footprint is blocked: '+choice['key']
+                    if not self.planner.plan.get('defense_stations'):
+                        raise RuntimeError(reason)
+                    # A rejected footprint has not submitted any part of this
+                    # batch. Keep monitoring and defensive maintenance alive
+                    # while a corrected plan is prepared, including on resume.
+                    self.planner.service_intent=None
+                    self.journal.state.update(service_intent=None,production_suspended=
+                        dict(reason=reason,tick=o['tick'],action=dict(action)))
+                    self.journal.save()
+                    self.journal.emit('production_suspended',self.journal.state['production_suspended'])
+                    print(reason+'; defense watch remains active',flush=True)
+                    return False
         self.journal.state['serial'] += 1
         job = dict(choice, id='auto-' + self.journal.state.get('run_id',self.journal.directory.name)
                    + '-' + str(self.journal.state['serial']))
@@ -648,7 +801,8 @@ def main():
             'resumed':args.resume,
             'source_sha256':{name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
                 for name in ('client/autopilot.py','client/routes.py','client/materials.py',
-                             'client/progression.py','client/agent.py','client/obstacles.py','data/catalog-2.0.77.json')}})
+                             'client/progression.py','client/agent.py','client/obstacles.py',
+                             'client/belt_routes.py','client/construction.py','client/factory_defense.py','data/catalog-2.0.77.json')}})
         try:
             with Agent() as game:
                 runner = Runner(game, Planner(plan), journal)

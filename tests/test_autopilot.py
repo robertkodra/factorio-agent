@@ -49,6 +49,158 @@ class FakeGame:
 
 
 class AutopilotTests(unittest.TestCase):
+    def test_blocked_construction_keeps_defense_alive_across_resume(self):
+        g=FakeGame();j=MemoryJournal();g.f['tick']=100
+        station=dict(id='station',entity='gun-turret',position=dict(x=100,y=0),stand=dict(x=98,y=0))
+        build=dict(id='pole',entity='small-electric-pole',position=dict(x=1,y=0),stand=dict(x=0,y=0),build=True)
+        g.o['inventory']=[dict(name='small-electric-pole',count=1)]
+        turret=dict(id=1,name='gun-turret',type='ammo-turret',position=station['position'],health=400,
+                    ammo=[dict(name='firearm-magazine',count=20)])
+        g.f['entities']=[turret]
+        original=g.request
+        def request(op,**kw):
+            if op=='placement':
+                g.calls.append((op,kw));return dict(can_place=False)
+            return original(op,**kw)
+        g.request=request
+        plan=dict(target='infrastructure',sites=[build,station],defense_stations=['station'])
+        r=Runner(g,Planner(plan),j)
+        self.assertFalse(r.poll())
+        self.assertEqual(j.state['production_suspended']['action']['entity'],'small-electric-pole')
+        self.assertIsNone(j.state['pending'])
+        self.assertFalse(any(op=='submit' for op,_ in g.calls))
+        # Resuming the same plan must not retry the rejected footprint.
+        r=Runner(g,Planner(plan),j)
+        self.assertFalse(r.poll())
+        self.assertEqual(sum(op=='placement' for op,_ in g.calls),1)
+        g.o['tick']=200;g.f['tick']=200;turret['health']=390;r.defense_poll_wall=0
+        self.assertFalse(r.poll())
+        self.assertTrue(j.state['pending']['key'].startswith('factory-defense:'))
+        self.assertTrue(g.o['guard']['enabled'])
+
+    def test_completed_target_keeps_factory_watch_alive(self):
+        g=FakeGame();j=MemoryJournal();g.f['researched'].append('military-2');g.f['tick']=100
+        s=dict(id='station',entity='gun-turret',position=dict(x=3,y=0),stand=dict(x=1,y=0))
+        g.f['entities']=[dict(id=1,name='gun-turret',type='ammo-turret',position=s['position'],
+            health=400,ammo=[dict(name='firearm-magazine',count=20)])]
+        p=Planner(dict(target='military-2',sites=[s],defense_stations=['station'],watch_after_target=True))
+        r=Runner(g,p,j);self.assertFalse(r.poll());self.assertTrue(j.state['target_verified'])
+        g.o['tick']=130;g.f['tick']=130;g.f['entities'][0]['health']=399;r.defense_poll_wall=0
+        self.assertFalse(r.poll());self.assertIsNotNone(r.factory_defense.state['alarm'])
+        self.assertEqual(sum(k=='target_verified' for k,_ in j.events),1)
+        s.update(ammo_min=10,ammo_target=20)
+        g.o.update(tick=800,position=s['stand']);g.f['tick']=800
+        g.f['entities'][0]['ammo'][0]['count']=5;r.defense_poll_wall=0
+        self.assertFalse(r.poll())
+        self.assertEqual(j.state['pending']['key'],'maintain:ammo:station')
+
+    def test_remote_damage_preempts_running_work_and_restores_local_guard(self):
+        g=FakeGame();j=MemoryJournal()
+        station=dict(id='station',entity='gun-turret',position=dict(x=100,y=0),stand=dict(x=98,y=0))
+        p=Planner(dict(target='defense',sites=[station],defense_stations=['station']))
+        g.f.update(tick=130,entities=[dict(id=1,name='transport-belt',type='transport-belt',
+            position=dict(x=102,y=0),health=80),dict(id=2,name='gun-turret',type='ammo-turret',
+            position=station['position'],health=400,ammo=[dict(name='firearm-magazine',count=20)])])
+        g.o['tick']=130;g.pending=dict(id='production-1',status='running');g.o['job']=g.pending
+        j.state['pending']=dict(id='production-1',key='approach:work',actions=[dict(type='walk',x=200,y=0)])
+        j.state['factory_defense']=dict(tick=100,health={'1':100,'2':400},alarm=None)
+        original=g.request
+        def request(op,**kw):
+            if op=='cancel':
+                g.calls.append((op,kw));self.assertEqual(kw['id'],'production-1')
+                g.pending.update(status='cancelled',started_tick=100,finished_tick=130)
+                g.o['guard']['enabled']=False
+                return g.pending
+            if op=='guard':
+                g.calls.append((op,kw));g.o['guard']['enabled']=kw['enabled'];return g.o['guard']
+            return original(op,**kw)
+        g.request=request;r=Runner(g,p,j)
+        self.assertFalse(r.poll());self.assertTrue(g.o['guard']['enabled'])
+        self.assertEqual([op for op,_ in g.calls if op in ('cancel','guard','submit')],['cancel','guard'])
+        self.assertTrue(j.state['pending']['factory_defense_cancelled'])
+        self.assertFalse(r.poll());self.assertEqual(dict(r.failures),{})
+        self.assertFalse(r.poll());self.assertTrue(j.state['pending']['key'].startswith('factory-defense:'))
+
+    def test_construction_precedes_optional_buffer_refill(self):
+        building=dict(id='pole',entity='small-electric-pole',build=True,
+            position={'x':2,'y':0},stand={'x':0,'y':0})
+        buffer=dict(id='buffer',entity='wooden-chest',position={'x':3,'y':0},stand={'x':0,'y':0},
+            stock_min={'copper-plate':30},stock_target={'copper-plate':100})
+        p=Planner(dict(target='infrastructure',sites=[building,buffer]))
+        o=observation();o['inventory']=[{'name':'small-electric-pole','count':1},{'name':'copper-plate','count':50}]
+        f=dict(researched=[],entities=[dict(name='wooden-chest',position=buffer['position'],chest=[])])
+        self.assertEqual(p.choose(o,f,{'enabled_recipes':[]})['actions'][0]['type'],'place')
+        o['inventory']=[{'name':'copper-plate','count':50}]
+        self.assertEqual(p.choose(o,f,{'enabled_recipes':[]})['actions'][0]['type'],'put')
+
+    def test_nearby_transfer_skips_walk_but_failure_restores_service_stance(self):
+        p=Planner(dict(target='military-2',sites=[site()],local_transfer_radius=3))
+        o=observation()
+        f=dict(entities=[dict(name='stone-furnace',position=site()['position'])])
+        p.refresh(o,f,{'enabled_recipes':[]})
+        action=dict(type='take',item='iron-plate',count=1,inventory='output')
+        self.assertEqual(p.at('iron',action,'collect')['actions'][0]['type'],'take')
+        p.stance_attempts['iron']=1
+        self.assertEqual(p.at('iron',action,'collect')['actions'][0]['type'],'walk')
+        p.stance_attempts.clear();o['position']={'x':-1,'y':0}
+        self.assertEqual(p.at('iron',action,'collect')['actions'][0]['type'],'walk')
+
+    def test_lab_colour_shortage_is_served_before_topping_up_abundant_colour(self):
+        s=dict(id='lab',entity='lab',position={'x':3,'y':0},stand={'x':1,'y':0})
+        p=Planner(dict(target='military-2',sites=[s]))
+        o=observation();o['position']=s['stand'];o['inventory']=[
+            {'name':'automation-science-pack','count':20},{'name':'logistic-science-pack','count':20}]
+        f=dict(researched=[],research='military-2',progress=0,entities=[dict(
+            name='lab',type='lab',position=s['position'],input=[{'name':'automation-science-pack','count':9}])])
+        choice=p.choose(o,f,{'enabled_recipes':[]})
+        self.assertEqual(choice['actions'][0]['item'],'logistic-science-pack')
+
+    def test_construction_walks_while_crafting_but_never_places_missing_item(self):
+        s=dict(id='belt',entity='transport-belt',build=True,
+               position={'x':10.5,'y':.5},stand={'x':10.5,'y':.5})
+        second=dict(s,id='next-belt',position={'x':11.5,'y':.5},stand={'x':11.5,'y':.5})
+        p=Planner(dict(target='infrastructure',sites=[s,second]))
+        o=observation();o['crafting']=[{'recipe':'transport-belt','count':10}]
+        f={'entities':[],'researched':[]};r={'enabled_recipes':['transport-belt']}
+        self.assertEqual(p.choose(o,f,r)['actions'][0]['type'],'walk')
+        o['position']=s['stand']
+        self.assertIsNone(p.choose(o,f,r))
+        o['inventory']=[{'name':'transport-belt','count':2}]
+        self.assertEqual(p.choose(o,f,r)['actions'][0]['type'],'place')
+
+    def test_infrastructure_target_requires_every_belt_and_correct_direction(self):
+        g = FakeGame(); j = MemoryJournal()
+        s = dict(id='belt',entity='transport-belt',position={'x':.5,'y':.5},
+                 stand={'x':.5,'y':.5},build=True,direction='east')
+        p = Planner(dict(target='infrastructure',sites=[s]))
+        g.f['entities']=[dict(name='transport-belt',type='transport-belt',
+                              position=s['position'],direction=0)]
+        self.assertFalse(Runner(g,p,j).poll())
+        self.assertFalse(any(k=='target_verified' for k,_ in j.events))
+        g.f['entities'][0]['direction']=4
+        self.assertTrue(Runner(g,p,j).poll())
+
+    def test_belt_batch_preflights_every_tile_before_any_submission(self):
+        g = FakeGame(); j = MemoryJournal()
+        from client.belt_routes import belt_route
+        sites = belt_route([(.5,.5),(2.5,.5)], 'east')['sites']
+        p = Planner(dict(target='infrastructure',sites=sites))
+        g.o['position']={'x':.5,'y':.5}
+        g.o['inventory']=[{'name':'transport-belt','count':3}]
+        original = g.request
+        checks=[]
+        def request(op,**kw):
+            if op=='placement':
+                checks.append(kw)
+                return {'can_place':kw['x']!=1.5}
+            return original(op,**kw)
+        g.request=request
+        with self.assertRaisesRegex(RuntimeError,'footprint is blocked'):
+            Runner(g,p,j).poll()
+        self.assertEqual([q['x'] for q in checks],[.5,1.5])
+        self.assertFalse(any(op=='submit' for op,_ in g.calls))
+        self.assertIsNone(j.state['pending'])
+
     def test_transfer_is_replanned_after_travel_not_batched_with_stale_count(self):
         p=Planner({'target':'military-2','sites':[site()],
             'sources':[{'site':'iron','item':'iron-plate','inventory':'output'}]})
@@ -115,7 +267,7 @@ class AutopilotTests(unittest.TestCase):
         o['position']={'x':1,'y':0};o['inventory']=[{'name':'coal','count':12}]
         f={'entities':[dict(name='wooden-chest',type='container',position=chest['position'],chest=[])]}
         p.refresh(o,f,{'enabled_recipes':[]})
-        action=p.maintenance()['actions'][0]
+        action=p.maintain_buffers()['actions'][0]
         self.assertEqual((action['type'],action['inventory'],action['count']),('put','chest',12))
 
     def test_existing_output_satisfies_demand_before_expanding_production(self):

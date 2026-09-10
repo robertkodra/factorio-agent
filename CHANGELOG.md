@@ -1,3 +1,11 @@
+# Controller 0.7.0 development
+
+Typed underground-belt endpoints and owned lane/pair observations; batched belt
+construction, optional normal tree clearing, craft/travel overlap, changing
+factory waypoint checks, furnace-block templates and cadence audits. See
+[the ongoing belt practice](knowledge/belt-production-001.md) for measured
+limitations and retained failures.
+
 # Changes
 
 ## Buffered production and fluid observations 0.6.0 — 2026-09-10

@@ -10,6 +10,57 @@ git switch -c codex/next-milestone
 
 Read [POLICY.md](POLICY.md), [ROADMAP.md](ROADMAP.md), and [knowledge/README.md](knowledge/README.md). Set Git to your own GitHub-provided no-reply identity before committing. Never copy another machine's credentials or local configuration.
 
+## Current development — controller 0.7.0
+
+Read the [paused-session retrospective](knowledge/session-retrospective-001.md)
+first, then the [improvement analysis](knowledge/improvement-plan-001.md).
+The latter adds a fresh cadence/stock audit, a downloaded reference replay and
+prioritized proposed changes; it does not claim those changes are implemented.
+The user explicitly requested a pause and learning review. The game is
+paused, the gameplay executor exited, and the passive watcher stopped. The final
+checkpoint passed integrity/hash verification and the private run ledger is
+closed. Do not resume automatically; wait for the user's continuation request
+and start a new continuation ledger while preserving the checkpoint and failures.
+
+Engine and Fluid handling completed through labs; Oil gathering is about 21
+percent complete at the paused snapshot. The engineer has full health. Circuit
+cable direct feed and separate red/green lanes were verified during the sequence.
+Oil production, later science and a rocket remain unverified. The reports below
+retain historical observations; references to running or unpaused executors are
+superseded by this stopping point.
+
+The preceding [supply recovery sequence](knowledge/supply-recovery-001.md) restored
+eight iron furnaces and four steam engines. Its 23-percent Engine stopping point
+is superseded by the completed research above.
+
+Read [the remote factory-attack failure and response](knowledge/factory-defense-001.md)
+first. The coal conveyor was attacked while attention was on construction. Its
+lost tiles were replaced and the loaded turret relocated. Two additional turrets
+now receive ammunition from that center turret through powered long-handed
+inserters. Live inventories showed ten magazines in each outer turret and twenty
+in the center. This verifies distribution, not performance under fire. A persistent
+factory defense watch now owns the executor; inspect its live handle/journal before any
+new gameplay. The game remains unpaused. Preserve the failed response and damage
+records. New polling/dispatch code passes unit tests but has not faced another
+measured real attack. Native factory events and grenade use remain unimplemented.
+
+Advanced material processing and Fast inserter completed through labs. The mall
+now has iron/gear/circuit/cable transport, but copper input still needs carrying.
+The additional boiler/engines now operate after normally rebuilding the coal
+approach to feed the underground entrance inline. Coal in the boiler and steam
+in both added working engines were observed; sustained full-load capacity still
+needs measurement. Engine research has started; later oil/science and the rocket remain.
+
+Read [belt-fed production development](knowledge/belt-production-001.md) and the
+updated [strategy](knowledge/strategy.md). Controller 0.7.0 is installed and its
+underground crossing and continuous iron return were verified live. The 0.6.0
+ledger closed with its failures preserved; a new checkpoint continuation is
+open. Check live server identity and active journals before continuing. The single
+scheduler now supplies oil-prerequisite science and maintains defense. Sustained
+post-correction throughput, oil extraction and later science still need verification.
+Next are connected copper/construction supplies and fewer ingredient trips.
+Do not assume the older stopped states below still apply.
+
 ## Latest state — controller 0.6.0
 
 Read [buffered production and fluid observations](knowledge/production-oil-001.md)

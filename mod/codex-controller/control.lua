@@ -1,4 +1,4 @@
-local VERSION = '0.6.0'
+local VERSION = '0.7.0'
 local navigation = require('navigation')
 local combat_observation = require('combat_observation')
 local reflex = require('reflex')
@@ -9,7 +9,7 @@ local resumed = false
 local DIR = {north=0,northeast=2,east=4,southeast=6,south=8,southwest=10,west=12,northwest=14}
 local INV = {fuel=defines.inventory.fuel,source=defines.inventory.furnace_source,result=defines.inventory.furnace_result,chest=defines.inventory.chest,input=defines.inventory.assembling_machine_input,output=defines.inventory.assembling_machine_output,ammo=defines.inventory.turret_ammo}
 local TYPES = {walk=true,mine=true,craft=true,await_craft=true,place=true,put=true,take=true,wait_inventory=true,research=true,set_recipe=true,rotate=true,wait_ticks=true,launch=true}
-local FIELDS = {type=true,x=true,y=true,count=true,item=true,recipe=true,entity=true,direction=true,inventory=true,player_inventory=true,tolerance=true,timeout=true,ticks=true,technology=true}
+local FIELDS = {type=true,x=true,y=true,count=true,item=true,recipe=true,entity=true,direction=true,belt_type=true,inventory=true,player_inventory=true,tolerance=true,timeout=true,ticks=true,technology=true}
 local function state()
   storage.agent = storage.agent or {version=VERSION,jobs={},order={},events={},sequence=0,follow=true,pauses=0}
   return storage.agent
@@ -112,6 +112,9 @@ local function validate(actions)
       if a.inventory and not INV[a.inventory] then error('invalid_inventory') end
     end
     if a.player_inventory~=nil and ((a.type~='put' and a.type~='take') or (a.player_inventory~='main' and a.player_inventory~='ammo')) then error('invalid_player_inventory') end
+    if a.belt_type~=nil and (a.type~='place' or not prototypes.entity[a.entity] or
+      prototypes.entity[a.entity].type~='underground-belt' or
+      (a.belt_type~='input' and a.belt_type~='output')) then error('invalid_belt_type') end
     if a.type=='craft' or a.type=='set_recipe' then
       if not named(a.recipe) or not prototypes.recipe[a.recipe] then error('invalid_recipe') end
     end
@@ -180,7 +183,7 @@ local function start_step(c,j,a)
     if not c.can_place_entity{name=a.entity,position=pos,direction=dir} then error('placement_rejected') end
     local removed=c.remove_item{name=a.item,count=1}
     if removed~=1 then error('inventory_changed') end
-    local ok,e=pcall(function() return c.surface.create_entity{name=a.entity,position=pos,direction=dir,force=c.force,raise_built=true,build_check_type=defines.build_check_type.manual} end)
+    local ok,e=pcall(function() return c.surface.create_entity{name=a.entity,position=pos,direction=dir,type=a.belt_type,force=c.force,raise_built=true,build_check_type=defines.build_check_type.manual} end)
     if not ok or not e then c.insert{name=a.item,count=1};error('placement_failed') end
     j.metrics.placed=(j.metrics.placed or 0)+1
     next_step(j,{entity=e.name,position=e.position});return
@@ -383,6 +386,13 @@ for _,e in pairs(s.find_entities_filtered{force=f})do
  end;
  if e.type=='rocket-silo' then v.rocket_parts=e.rocket_parts;v.rocket_parts_required=e.prototype.rocket_parts_required;v.rocket_silo_status=e.rocket_silo_status end;
  if e.type=='inserter' then v.pickup=e.pickup_position;v.drop=e.drop_position;end;
+ if e.type=='transport-belt' or e.type=='underground-belt' then
+  v.lines={e.get_transport_line(1).get_contents(),e.get_transport_line(2).get_contents()};
+  if e.type=='underground-belt' then
+   v.belt_type=e.belt_to_ground_type;local n=e.neighbours;
+   if n and n.valid and n.force==f then v.neighbour_id=n.unit_number end;
+  end;
+ end;
  table.insert(o.entities,v);
 end;
 local stats=f.get_item_production_statistics(s);
@@ -542,7 +552,13 @@ local function handle(req)
     local e=entity_at(c,req);close_to(c,e)
     local invs={};for name,idx in pairs(INV) do if name~='ammo' or e.type=='ammo-turret' then local inv=e.get_inventory(idx);if inv then invs[name]=inv.get_contents() end end end
     local out={name=e.name,position=e.position,direction=e.direction,status=e.status,inventories=invs}
-    if e.type=='transport-belt' then out.lines={e.get_transport_line(1).get_contents(),e.get_transport_line(2).get_contents()} end
+    if e.type=='transport-belt' or e.type=='underground-belt' then
+      out.lines={e.get_transport_line(1).get_contents(),e.get_transport_line(2).get_contents()}
+      if e.type=='underground-belt' then
+        out.belt_type=e.belt_to_ground_type;local n=e.neighbours
+        if n and n.valid and n.force==c.force then out.neighbour_id=n.unit_number end
+      end
+    end
     if e.type=='mining-drill' then out.drop_position=e.drop_position end
     return out
   end

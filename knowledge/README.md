@@ -1,5 +1,29 @@
 # Factorio knowledge base
 
+Latest analysis: [controller and factory improvement plan](improvement-plan-001.md).
+A fresh cadence/stock audit, speedrunner reference archive inspection, phased
+factory proposal and implementation priorities extend the paused retrospective.
+
+Current state: [paused practice and consolidated lessons](session-retrospective-001.md).
+The user requested a pause; the checkpoint is verified and the executor stopped.
+Do not resume gameplay automatically. Earlier running-state notes below are historical.
+
+Latest progress: [restoring useful science flow](science-flow-001.md).
+Engine and Fluid handling completed; Oil gathering is running after correcting
+circuit input starvation and separating the science belt lanes.
+
+Latest sequence: [supply recovery and automatic science transport](supply-recovery-001.md).
+Coal and iron production recovered; science transport works, but ingredient
+starvation still prevents sustained research.
+
+Latest failure and correction: [remote factory attack and continuous defense watch](factory-defense-001.md).
+Engineer-local combat missed damage to the coal supply. Keep this limitation and
+the actual losses visible when judging the newer controller.
+
+Current development: [belt-fed production and cadence](belt-production-001.md).
+The updated strategy adopts a fast hand-fed bootstrap before planned furnace
+blocks and a bus. Historical stopping points below remain historical.
+
 Current development: [buffered production and fluid observations](production-oil-001.md).
 Controller 0.6.0 supersedes the older implementation versions below. Historical
 reports retain their original claims; oil and a rocket are still unverified.
