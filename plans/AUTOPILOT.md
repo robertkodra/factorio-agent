@@ -2,7 +2,7 @@
 
 The scheduler consumes a private, versioned JSON plan describing surveyed sites.
 Keep real map coordinates and run output under ignored `runtime/`. It controls
-an already running, bound engineer with controller 0.5.1, base 2.0.77, normal
+an already running, bound engineer with controller 0.6.0, base 2.0.77, normal
 speed and local defense enabled. It does not create a fresh factory by itself.
 
 ```sh
@@ -18,12 +18,18 @@ Do not run a second action executor against the same engineer.
 
 The plan object contains:
 
-- `version: 1`, `target: "military-2"` or `"rocket"`.
+- `version: 1`, `target`: a finite catalog technology or `"rocket"`.
+- Optional `construction_batch_size` (1–20, default 1) procures several missing
+  structures of the same kind per trip, counting only unlocked planned sites.
 - `sites`: unique `id`, `entity`, `position: {x, y}` and `stand: {x, y}`.
   Optional `build`, `direction`, `recipe`, `requires` (technology names),
   `fuel_min`, `fuel_target`, `ammo_min`, `ammo_target`.
 - Optional `input_site`/`output_site` on a recipe machine refer to configured
-  chest sites. The generated item cell includes the intervening inserters.
+  chest sites. Optional `input_inserter`/`output_inserter` references let normal
+  direct machine transfers bootstrap production until those arms exist.
+  `batch_size` (1–100 crafts) sizes recipe buffers; replenishment begins below
+  half that level instead of replacing each consumed item. The generated item cell
+  includes the intervening inserters.
 - `sources`: `site`, `inventory` (`output`, `fuel`, or `chest`), `item`, and an
   optional nonnegative `reserve`. Reserve coal in opposing coal drills.
 - `engineer_ammo_reserve`: full-magazine-count replenishment threshold.
@@ -34,8 +40,20 @@ The plan object contains:
   The graph guides the normal game pathfinder; it does not certify safety.
 
 Structures without recipes are built before production demand, subject to their
-`requires` gates. Recipe machines are constructed on demand. Their ingredients
-are supplied from existing output, recursively configured production cells, or
+`requires` gates. Power poles precede chests, then other structures, to prevent
+assembler/inserter startup cycles. Recipe machines are constructed on demand;
+`eager: true` requests their construction with infrastructure.
+
+A chest can declare `stock_min` and `stock_target` item/count maps for fuel or
+other supplies. An `external_inputs: true` recipe site waits for its native
+inserters instead of receiving direct ingredient deliveries.
+
+A previously surveyed tree/rock site may declare `gather: "wood"` (or its real
+mined product), without `build`. The scheduler walks, confirms the named entity
+locally, and mines normally. Its completed or confirmed-absent site is recorded
+as consumed. This is for consumable natural entities, not a renewable ore node.
+
+Recipe ingredients are supplied from existing output, recursively configured production cells, or
 normal hand crafting of unlocked solid recipes. Machines still need adequate
 power, mining inputs and connected fluids; placement alone does not prove these.
 
@@ -51,3 +69,35 @@ verified fluid endpoints into item-funded surface-pipe sites. Existing pipe
 reservations prevent crossings or side contact with another fluid. It cannot
 infer machine ports or route through unknown terrain. Its output still needs
 native placement checks and an observed flow test; no live oil chain has passed.
+
+
+`client.layouts.smelting_cell` plans an electric drill feeding a mixed ore/fuel
+chest, normal inserters, a stone furnace and an output chest. Check real ore
+coverage, collision, every inserter port and powered operation.
+`client.layouts.pole_line` spaces ordinary small poles within their wire reach;
+its endpoints, all terrain and local stances still require validation.
+
+Controller 0.6.0's read-only `prototype` operation supplies static port geometry.
+`client.fluid_ports.recipe_ports` maps pinned recipe input/output slot numbers
+to those ports and rotates them with the machine. Native factory observations
+include fluid segment IDs, fluid locks, mining targets and completed-craft
+counters. Matching segments establish a connection, not sufficient throughput.
+
+Use `python3 -m client.production_audit runtime/before.json runtime/after.json`
+for observed production deltas over a measured game-time interval. Snapshots
+must belong to the same world; whole-factory item counters may include hand
+crafting, while unchanged machine identities/recipes expose native craft rates.
+
+Output-only fluid boxes may have no segment ID. Use `fluid_path` to validate
+reciprocal native ports and permitted flow direction across such boundaries.
+
+Material collection estimates travel per usable stock, so a nearly empty nearest
+furnace does not monopolize pickups. A currently producing machine can accumulate
+a small usable batch before collection; science uses a smaller threshold. These
+are bounded scheduling heuristics, not an optimal route or throughput guarantee.
+
+Service stances also exclude conservative collision bounds for nearby neutral
+obstacles returned by a bounded charted scan. Static geometry is fetched through
+the fixed `prototype` operation and cached. The scan refreshes after movement
+or ten game seconds. This does not certify a route: a truncated scan can omit
+obstacles, and neutral geometry outside that local sample remains unknown.

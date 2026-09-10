@@ -6,6 +6,14 @@ from client.agent import ROOT
 
 
 class NavigationTests(unittest.TestCase):
+    def test_lua_manufacturing_observations(self):
+        lua = shutil.which('lua5.2') or shutil.which('lua') or shutil.which('luajit')
+        if not lua:
+            self.skipTest('Install Lua to run manufacturing observation tests')
+        result = subprocess.run([lua, 'tests/manufacturing_test.lua'], cwd=ROOT,
+                                text=True, capture_output=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_lua_job_history(self):
         lua = shutil.which('lua5.2') or shutil.which('lua') or shutil.which('luajit')
         if not lua:

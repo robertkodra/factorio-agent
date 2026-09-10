@@ -1,8 +1,9 @@
-local VERSION = '0.5.1'
+local VERSION = '0.6.0'
 local navigation = require('navigation')
 local combat_observation = require('combat_observation')
 local reflex = require('reflex')
 local transfer = require('transfer')
+local manufacturing = require('manufacturing')
 local job_history = require('job_history')
 local resumed = false
 local DIR = {north=0,northeast=2,east=4,southeast=6,south=8,southwest=10,west=12,northwest=14}
@@ -355,6 +356,13 @@ for _,e in pairs(s.find_entities_filtered{force=f})do
  health=e.health,max_health=e.max_health,energy=e.energy,box=e.bounding_box};
  if defines.entity_status then for name,value in pairs(defines.entity_status)do if value==e.status then v.status_name=name;break end end end;
  v.electric_network_id=e.electric_network_id;
+ v.fluid_boxes=manufacturing.connections(e,f);
+ if e.type=='mining-drill' then
+  v.drop=e.drop_position;local target=e.mining_target;
+  if target and target.valid and f.is_chunk_charted(s,{math.floor(target.position.x/32),math.floor(target.position.y/32)}) then
+   v.mining_target={name=target.name,position=target.position,amount=target.amount};
+  end;
+ end;
  v.fluids={};for i=1,#e.fluidbox do local fluid=e.fluidbox[i];if fluid then v.fluids[#v.fluids+1]={index=i,name=fluid.name,amount=fluid.amount,temperature=fluid.temperature}end end;
  local fuel=e.get_fuel_inventory();if fuel then v.fuel=fuel.get_contents()end;
  if e.type=='ammo-turret' then
@@ -370,7 +378,7 @@ for _,e in pairs(s.find_entities_filtered{force=f})do
  elseif e.type=='lab' then input=e.get_inventory(defines.inventory.lab_input);end;
  if input then v.input=input.get_contents()end;
  if e.type=='assembling-machine' or e.type=='furnace' or e.type=='rocket-silo' then
-  v.products_finished=e.products_finished;
+  v.products_finished=e.products_finished;v.crafting=e.is_crafting();
   local output=e.get_output_inventory();if output then v.output=output.get_contents()end;
  end;
  if e.type=='rocket-silo' then v.rocket_parts=e.rocket_parts;v.rocket_parts_required=e.prototype.rocket_parts_required;v.rocket_silo_status=e.rocket_silo_status end;
@@ -396,7 +404,12 @@ end
 local function handle(req)
   if type(req)~='table' then error('request_must_be_object') end
   local s=state();local op=req.op
-  if op=='hello' then return {version=VERSION,commands={'bind','release','submit','status','observe','scan','survey','placement','inspect','factory','research_state','guard','cancel','pause','save'},actions=TYPES} end
+  if op=='hello' then return {version=VERSION,commands={'prototype','bind','release','submit','status','observe','scan','survey','placement','inspect','factory','research_state','guard','cancel','pause','save'},actions=TYPES} end
+  if op=='prototype' then
+    for k,_ in pairs(req) do if k~='op' and k~='entity' then error('unknown_prototype_field') end end
+    if not named(req.entity) then error('invalid_entity_name') end
+    return manufacturing.prototype(req.entity)
+  end
   if op=='bind' then
     if s.character and s.character.valid then check_rules(game.get_player(s.owner));return snapshot() end
     local p=game.get_player(req.player or 1)

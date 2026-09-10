@@ -22,3 +22,10 @@ class RouteTests(unittest.TestCase):
         stances=service_stances(site,entities)
         self.assertNotIn(site['stand'],stances)
         self.assertTrue(stances)
+
+    def test_natural_gather_stances_leave_margin_for_shorter_reach(self):
+        from client.routes import service_stances,distance
+        p={'x':0,'y':0}
+        options=service_stances({'position':p,'stand':{'x':3,'y':0},'gather':'wood'},[])
+        self.assertEqual(options[0],{'x':2.,'y':0.})
+        self.assertTrue(all(distance(p,s)<=2.01 for s in options))

@@ -10,7 +10,7 @@ from client.autopilot import Journal, Planner, Runner
 
 def observation():
     return dict(tick=100, actor_unit=1, health=250, max_health=250, paused=False, speed=1,
-                version='0.5.1', mods={'base':'2.0.77'}, position={'x':0,'y':0}, inventory=[],
+                version='0.6.0', mods={'base':'2.0.77'}, position={'x':0,'y':0}, inventory=[],
                 crafting={}, guard={'enabled':True,'active':False}, job={'status':'idle'},
                 guns={'slots':[{'ammo':'firearm-magazine','magazines':20,'rounds':10}]})
 
@@ -37,6 +37,7 @@ class FakeGame:
             if 'id' in kw:return self.pending
             return {'sequence':0,'events':[]}
         if op=='observe':return self.o
+        if op=='scan':return {'entities':[],'truncated':False}
         if op=='factory':return self.f
         if op=='research_state':return {'enabled_recipes':[]}
         if op=='submit':
@@ -102,11 +103,30 @@ class AutopilotTests(unittest.TestCase):
         o['inventory']=[{'name':'copper-plate','count':20},{'name':'iron-gear-wheel','count':20}]
         f={'entities':[dict(name=s['entity'],type='assembling-machine',position=s['position'],
             recipe=s['recipe'],input=([{'name':'copper-plate','count':10},{'name':'iron-gear-wheel','count':10}]
-                if s['id']=='red-a' else []),output=[{'name':'automation-science-pack','count':1}]) for s in sites]}
+                if s['id']=='red-a' else []),output=[{'name':'automation-science-pack','count':1 if s['id']=='red-a' else 0}]) for s in sites]}
         p.refresh(o,f,{'enabled_recipes':['automation-science-pack']})
         choice=p.ensure('automation-science-pack',20)
         self.assertEqual(choice['key'],'approach:red-b')
         self.assertEqual(p.service_intent['action']['type'],'put')
+
+    def test_buffer_inventory_refill_uses_chest_and_actual_stock(self):
+        chest=dict(site('buffer'),entity='wooden-chest',stock_min={'coal':5},stock_target={'coal':30})
+        p=Planner({'target':'military-2','sites':[chest]});o=observation()
+        o['position']={'x':1,'y':0};o['inventory']=[{'name':'coal','count':12}]
+        f={'entities':[dict(name='wooden-chest',type='container',position=chest['position'],chest=[])]}
+        p.refresh(o,f,{'enabled_recipes':[]})
+        action=p.maintenance()['actions'][0]
+        self.assertEqual((action['type'],action['inventory'],action['count']),('put','chest',12))
+
+    def test_existing_output_satisfies_demand_before_expanding_production(self):
+        sites=[dict(site('a'),entity='assembling-machine-1',recipe='automation-science-pack'),
+               dict(site('b'),entity='assembling-machine-1',recipe='automation-science-pack',
+                    position={'x':10,'y':0},stand={'x':13,'y':0})]
+        p=Planner({'target':'military-2','sites':sites});o=observation();o['position']={'x':1,'y':0}
+        f={'entities':[dict(name=s['entity'],type='assembling-machine',position=s['position'],
+             recipe=s['recipe'],input=[],output=[{'name':'automation-science-pack','count':10}] if s['id']=='a' else []) for s in sites]}
+        p.refresh(o,f,{'enabled_recipes':['automation-science-pack']})
+        self.assertEqual(p.ensure('automation-science-pack',5)['actions'][0]['type'],'take')
 
     def test_unknown_submission_is_journalled_and_never_replayed(self):
         game=FakeGame();game.drop=True;journal=MemoryJournal()
@@ -187,3 +207,89 @@ class AutopilotTests(unittest.TestCase):
             self.assertEqual(resumed.state['pending'],{'id':'uncertain'});resumed.stream.close()
             with self.assertRaisesRegex(ValueError,'exact recorded plan'):
                 Journal(directory,dict(plan,target='military-2'),resume=True)
+
+    def test_missing_inserter_bootstraps_through_normal_machine_inventory(self):
+        from client.layouts import assembly_cell
+        sites=assembly_cell('iron-gear-wheel')['sites']
+        p=Planner({'target':'military-2','sites':sites})
+        machine=next(s for s in sites if s.get('recipe'))
+        o=observation();o['position']=machine['stand'];o['inventory']=[{'name':'iron-plate','count':100}]
+        f={'entities':[dict(name=machine['entity'],position=machine['position'],type='assembling-machine',
+             recipe=machine['recipe'],input=[],output=[])]}
+        p.refresh(o,f,{'enabled_recipes':['iron-gear-wheel']})
+        a=p.supply_cell(machine['id'],10,())['actions'][0]
+        self.assertEqual((a['type'],a['inventory']),('put','input'))
+        self.assertEqual(p.output_location(machine['id']),machine['id'])
+
+    def test_gather_trip_is_not_discarded_for_neutral_entity_absent_from_factory(self):
+        tree=dict(site('tree'),entity='tree-01',gather='wood')
+        p=Planner({'target':'military-2','sites':[tree]});o=observation()
+        p.refresh(o,{'entities':[]},{'enabled_recipes':[]})
+        self.assertEqual(p.ensure('wood',5)['key'],'approach:tree')
+        o['position']=tree['stand'];p.refresh(o,{'entities':[]},{'enabled_recipes':[]})
+        self.assertEqual(p.finish_service()['actions'][0]['type'],'mine')
+        p.consumed_gather.add('tree');self.assertIsNone(p.ensure('wood',5))
+
+    def test_construction_batches_only_unbuilt_unlocked_matching_structures(self):
+        sites=[dict(site('pole-'+str(i)),entity='small-electric-pole',build=True,
+                    position={'x':3+i*5,'y':0},stand={'x':1+i*5,'y':0}) for i in range(4)]
+        sites[3]['requires']=['not-yet-unlocked']
+        p=Planner({'target':'military-2','construction_batch_size':10,'sites':sites})
+        o=observation();o['inventory']=[{'name':'wood','count':20},{'name':'copper-plate','count':20}]
+        f={'entities':[], 'researched':[]}
+        choice=p.choose(o,f,{'enabled_recipes':['small-electric-pole']})
+        self.assertEqual(choice['key'],'craft:small-electric-pole')
+        # Each ordinary craft yields two poles; three missing poles need two crafts.
+        self.assertEqual(choice['actions'][0]['count'],2)
+
+    def test_power_is_built_before_inserter_production_can_bootstrap(self):
+        arm=dict(site('arm'),entity='inserter',build=True)
+        pole=dict(site('pole'),entity='small-electric-pole',build=True)
+        p=Planner({'target':'military-2','sites':[arm,pole]})
+        o=observation();o['position']=pole['stand'];o['inventory']=[{'name':'small-electric-pole','count':1}]
+        choice=p.choose(o,{'entities':[],'researched':[]},{'enabled_recipes':[]})
+        self.assertEqual(choice['key'],'build:pole')
+
+    def test_collection_uses_full_neighbor_instead_of_repeated_tiny_nearest_pickups(self):
+        sites=[dict(site('near'),position={'x':100,'y':0},stand={'x':103,'y':0}),
+               dict(site('full'),position={'x':103,'y':0},stand={'x':106,'y':0})]
+        p=Planner({'target':'military-2','sites':sites,'sources':[
+            {'site':s['id'],'inventory':'output','item':'iron-plate'} for s in sites]})
+        f={'entities':[dict(name=s['entity'],position=s['position'],output=[{'name':'iron-plate','count':n}])
+                       for s,n in zip(sites,(8,100))]}
+        p.refresh(observation(),f,{'enabled_recipes':[]})
+        self.assertEqual(p.ensure('iron-plate',20)['key'],'approach:full')
+
+    def test_starved_recipe_does_not_top_up_every_other_nearly_full_ingredient(self):
+        s=dict(site('inserter-cell'),entity='assembling-machine-1',recipe='inserter',batch_size=50)
+        p=Planner({'target':'military-2','sites':[s]});o=observation();o['position']=s['stand']
+        o['inventory']=[{'name':'iron-plate','count':100},{'name':'iron-gear-wheel','count':100},
+                        {'name':'electronic-circuit','count':50}]
+        f={'entities':[dict(name=s['entity'],position=s['position'],type='assembling-machine',recipe='inserter',
+            input=[{'name':'iron-plate','count':49},{'name':'iron-gear-wheel','count':49}],output=[])]}
+        p.refresh(o,f,{'enabled_recipes':['inserter']})
+        choice=p.supply_cell(s['id'],10,())
+        self.assertEqual(choice['actions'][0]['item'],'electronic-circuit')
+        self.assertEqual(choice['actions'][0]['count'],50)
+
+    def test_waits_for_small_growing_machine_output_instead_of_dispatching_a_long_tiny_trip(self):
+        s=dict(site('gear'),entity='assembling-machine-1',recipe='iron-gear-wheel',batch_size=50)
+        p=Planner({'target':'military-2','sites':[s]})
+        e=dict(name=s['entity'],position=s['position'],type='assembling-machine',recipe=s['recipe'],
+               input=[{'name':'iron-plate','count':100}],output=[{'name':'iron-gear-wheel','count':1}],crafting=True)
+        p.refresh(observation(),{'entities':[e]},{'enabled_recipes':['iron-gear-wheel']})
+        self.assertIsNone(p.ensure('iron-gear-wheel',10))
+        e['output'][0]['count']=10
+        p.refresh(observation(),{'entities':[e]},{'enabled_recipes':['iron-gear-wheel']})
+        self.assertEqual(p.ensure('iron-gear-wheel',10)['key'],'approach:gear')
+
+    def test_ready_science_is_delivered_before_funding_another_starved_parallel_cell(self):
+        sites=[dict(site('ready'),entity='assembling-machine-1',recipe='logistic-science-pack'),
+               dict(site('starved'),entity='assembling-machine-1',recipe='logistic-science-pack',
+                    position={'x':10,'y':0},stand={'x':13,'y':0})]
+        o=observation();o['inventory']=[{'name':'inserter','count':20},{'name':'transport-belt','count':20}]
+        f={'entities':[dict(name=s['entity'],position=s['position'],type='assembling-machine',recipe=s['recipe'],input=[],
+                           output=[{'name':'logistic-science-pack','count':4 if s['id']=='ready' else 0}]) for s in sites]}
+        p=Planner({'target':'military-2','sites':sites});p.refresh(o,f,{'enabled_recipes':['logistic-science-pack']})
+        self.assertEqual(p.ensure('logistic-science-pack',20)['key'],'approach:ready')
+        self.assertEqual(p.service_intent['action']['type'],'take')

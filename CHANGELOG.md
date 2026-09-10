@@ -1,5 +1,13 @@
 # Changes
 
+## Buffered production and fluid observations 0.6.0 — 2026-09-10
+
+- Added fixed static prototype reads, directed native fluid-connection checks, recipe-port mapping and charted mining-target observations.
+- Added ordinary powered smelting and pole-line layouts, stocked recipe buffers, batched construction and bounded natural-resource gathering.
+- Corrected startup power ordering and gathering reach after live failures; preserved those failures and development restarts.
+- Added read-only native craft-rate auditing and observed neutral-obstacle exclusions.
+- Live practice completed Automation 2 through four supplied labs and measured both new electric smelting cells. All 104 tests pass; 24 failed jobs and development recoveries remain recorded. See [the development report](knowledge/production-oil-001.md) for live evidence and remaining oil/rocket work.
+
 ## Persistent factory controller 0.5.1 — 2026-09-10
 
 - Added a persistent deterministic supply/research scheduler with private source/plan manifests, durable intentions, reconciliation, trip completion, configured travel corridors and bounded recovery.

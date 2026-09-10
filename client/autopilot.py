@@ -36,6 +36,8 @@ def load_plan(path):
     plan = json.loads(Path(path).read_text())
     if plan.get('version') != 1 or not isinstance(plan.get('sites'), list):
         raise ValueError('Expected version 1 plan with sites')
+    if type(plan.get('construction_batch_size',1)) is not int or not 1<=plan.get('construction_batch_size',1)<=20:
+        raise ValueError('Construction batch size must be 1-20')
     ids = set()
     for s in plan['sites']:
         if not isinstance(s.get('id'), str) or s['id'] in ids or not isinstance(s.get('entity'), str):
@@ -55,7 +57,13 @@ def load_plan(path):
         if type(source.get('reserve', 0)) is not int or source.get('reserve', 0) < 0:
             raise ValueError('Source reserve must be a nonnegative integer')
     for site in plan['sites']:
-        for key in ('input_site', 'output_site'):
+        if 'batch_size' in site and (type(site['batch_size']) is not int or not 1<=site['batch_size']<=100):
+            raise ValueError('Cell batch_size must be 1-100')
+        for item,minimum in site.get('stock_min',{}).items():
+            target=site.get('stock_target',{}).get(item)
+            if type(minimum) is not int or type(target) is not int or not 0<minimum<=target<=1000:
+                raise ValueError('Buffer stocks require 0 < minimum <= target <= 1000')
+        for key in ('input_site', 'output_site','input_inserter','output_inserter'):
             if key in site and site[key] not in ids:
                 raise ValueError('Cell buffers must refer to configured sites')
     if plan.get('target') != 'rocket':
@@ -74,6 +82,7 @@ class Planner:
         self.blocked_until = {}
         self.stance_attempts = Counter()
         self.service_intent = None
+        self.consumed_gather = set()
 
     def refresh(self, observation, factory, research):
         self.o, self.f = observation, factory
@@ -95,7 +104,7 @@ class Planner:
     def at(self, sid, action, detail):
         site = self.sites[sid]
         # Travel and transfer are separate jobs: re-observe amounts after travel.
-        options = service_stances(site, self.f['entities'])
+        options = service_stances(site, self.f['entities'] + self.f.get('obstacles',[]))
         p, stand = self.o['position'], options[self.stance_attempts[sid] % len(options)]
         key = detail + ':' + sid
         if math.hypot(p['x'] - stand['x'], p['y'] - stand['y']) > .6:
@@ -115,6 +124,9 @@ class Planner:
         entity = self.entities[sid]
         if action['type'] == 'place':
             if entity or not self.stock[self.sites[sid]['entity']]:
+                return None
+        elif action['type']=='mine' and self.sites[sid].get('gather'):
+            if sid in self.consumed_gather:
                 return None
         elif not entity:
             return None
@@ -137,13 +149,25 @@ class Planner:
             return None
         return self.at(sid, action, detail)
 
+    def input_location(self,sid):
+        site=self.sites[sid]
+        if site.get('input_inserter') and not self.entities.get(site['input_inserter']):
+            return sid
+        return site.get('input_site',sid)
+
+    def output_location(self,sid):
+        site=self.sites[sid]
+        if site.get('output_inserter') and not self.entities.get(site['output_inserter']):
+            return sid
+        return site.get('output_site',sid)
+
     def sources(self, item):
         candidates = list(self.plan.get('sources', []))
         for sid, site in self.sites.items():
             recipe = self.recipes.get(site.get('recipe', ''))
             if recipe and any(p['name'] == item for p in recipe['products']):
-                candidates.append(dict(site=site.get('output_site',sid),
-                    inventory='chest' if site.get('output_site') else 'output', item=item))
+                output=self.output_location(sid)
+                candidates.append(dict(site=output,inventory='chest' if output!=sid else 'output',item=item))
         candidates = [s for s in candidates if s['item'] == item and self.entities[s['site']]]
         return sorted(candidates, key=lambda s: math.hypot(
             self.sites[s['site']]['stand']['x'] - self.o['position']['x'],
@@ -157,6 +181,9 @@ class Planner:
             self.reason = 'Dependency cycle while supplying ' + item
             return None
         trail = (*trail, item)
+        available_total=sum(max(0,contents(self.entities[s['site']].get(s['inventory']))[item]
+            -s.get('reserve',0)) for s in self.sources(item))
+        ready_batch=min(missing,2 if item.endswith('science-pack') else 10)
         # Keep parallel producers fed before making another one-item delivery.
         # Otherwise the nearest assembler monopolizes every planning decision
         # while the other configured machines run out of intermediates.
@@ -166,25 +193,43 @@ class Planner:
             if not entity or not recipe or not any(p['name']==item for p in recipe['products']):
                 continue
             inputs = contents(entity.get('input'))
-            if site.get('input_site'):
-                inputs.update(contents((self.entities.get(site['input_site']) or {}).get('chest')))
-            output_sid = site.get('output_site',sid)
+            input_sid=self.input_location(sid)
+            if input_sid!=sid:
+                inputs.update(contents((self.entities.get(input_sid) or {}).get('chest')))
+            output_sid = self.output_location(sid)
             available = contents((self.entities.get(output_sid) or {}).get(
                 'chest' if output_sid!=sid else 'output'))[item]
-            if available<2 and any(i['type']=='item' and inputs[i['name']]<i['amount']
+            if available_total<ready_batch and available<2 and any(i['type']=='item' and inputs[i['name']]<i['amount']
                                    for i in recipe['ingredients']):
                 choice = self.supply_cell(sid, missing, trail)
                 if choice:
                     return choice
-        for source in self.sources(item):
+        pickup = max(missing, {'iron-plate':100,'copper-plate':100,'coal':60}.get(item,0))
+        def collection_cost(source):
+            available=contents(self.entities[source['site']].get(source['inventory']))[item]-source.get('reserve',0)
+            stand=self.sites[source['site']]['stand']
+            travel=math.hypot(stand['x']-self.o['position']['x'],stand['y']-self.o['position']['y'])
+            # Amortize a trip over usable stock. A nearly empty nearest furnace
+            # must not monopolize collection while its neighbors hold full stacks.
+            return (travel+12)/min(pickup,available) if available>0 else math.inf
+        for source in sorted(self.sources(item),key=collection_cost):
             sid = source['site']
             available = contents(self.entities[sid].get(source['inventory']))[item] - source.get('reserve', 0)
             if available > 0:
-                pickup = max(missing, {'iron-plate':100,'copper-plate':100,'coal':60}.get(item,0))
+                growing=any(self.output_location(machine_id)==sid and entity
+                    and (entity.get('crafting') or entity.get('status_name')=='working')
+                    for machine_id,entity in self.entities.items() if self.sites[machine_id].get('recipe'))
+                threshold=min(missing,2 if item.endswith('science-pack') else 10)
+                if available<threshold and growing:
+                    continue
                 choice = self.at(sid, dict(type='take', item=item, count=min(pickup, available, 200),
                     inventory=source['inventory']), 'collect:' + item)
                 if choice:
                     return choice
+        for sid,site in sorted(self.sites.items(),key=lambda row:math.hypot(
+                row[1]['position']['x']-self.o['position']['x'],row[1]['position']['y']-self.o['position']['y'])):
+            if site.get('gather')==item and sid not in self.consumed_gather:
+                return self.at(sid,dict(type='mine',item=item,count=1,timeout=3600),'gather')
         cells = [sid for sid, s in self.sites.items() if s.get('recipe') in self.recipes and
                  any(p['name'] == item for p in self.recipes[s['recipe']]['products'])]
         for sid in cells:
@@ -242,15 +287,18 @@ class Planner:
             return self.at(sid, dict(type='place', direction=site.get('direction','north')), 'build')
         if entity.get('recipe') != name and entity['type'] == 'assembling-machine':
             return self.at(sid, dict(type='set_recipe', recipe=name), 'configure')
-        count = max(1, min(10, desired))
+        count = site.get('batch_size', max(1, min(10, desired)))
         inputs = contents(entity.get('input'))
-        input_sid = site.get('input_site',sid)
+        input_sid = self.input_location(sid)
         if input_sid != sid:
             buffer = self.entities.get(input_sid)
             if not buffer:
                 self.reason = 'Missing input buffer: ' + input_sid
                 return None
             inputs.update(contents(buffer.get('chest')))
+        if site.get('external_inputs'):
+            self.reason = 'Waiting for native inserter supply/output: ' + sid
+            return None
         for ingredient in recipe['ingredients']:
             if ingredient['type'] == 'fluid':
                 # Fluids must arrive through normal pipes. Never insert them.
@@ -261,6 +309,10 @@ class Planner:
                         return choice
                 continue
             item = ingredient['name']
+            # Refill in batches instead of replacing each item immediately
+            # while another ingredient is the actual production bottleneck.
+            if inputs[item] >= max(1,math.ceil(count/2))*ingredient['amount']:
+                continue
             missing = max(0, count * ingredient['amount'] - inputs[item])
             if missing:
                 if self.stock[item]:
@@ -285,6 +337,16 @@ class Planner:
             entity = self.entities[sid]
             if not entity:
                 continue
+            for item,minimum in site.get('stock_min',{}).items():
+                held=contents(entity.get('chest'))[item]
+                if held<minimum:
+                    amount=site['stock_target'][item]-held
+                    if self.stock[item]:
+                        return self.at(sid,dict(type='put',inventory='chest',item=item,
+                            count=min(amount,self.stock[item])),'buffer:'+item)
+                    choice=self.ensure(item,amount)
+                    if choice:
+                        return choice
             remote = math.hypot(site['stand']['x']-self.o['position']['x'],
                                 site['stand']['y']-self.o['position']['y']) > 24
             nearby_sources = [s for s in self.plan.get('sources', []) if s['inventory']=='output'
@@ -329,12 +391,20 @@ class Planner:
         choice = self.maintenance()
         if choice:
             return choice
-        for sid, site in self.sites.items():
+        # Establish power and buffers before a downstream component can demand
+        # an assembler that depends on that same infrastructure for its output.
+        rank={'small-electric-pole':0,'medium-electric-pole':0,'big-electric-pole':0,
+              'substation':0,'wooden-chest':1,'iron-chest':1,'steel-chest':1}
+        construction=sorted(self.sites.items(),key=lambda row:rank.get(row[1]['entity'],2))
+        for sid, site in construction:
             if any(t not in factory['researched'] for t in site.get('requires', [])):
                 continue
-            if site.get('build') and not site.get('recipe') and not self.entities[sid]:
+            if site.get('build') and (not site.get('recipe') or site.get('eager')) and not self.entities[sid]:
                 if self.stock[site['entity']] < 1:
-                    choice = self.ensure(site['entity'], 1)
+                    remaining=sum(1 for other_id,other in self.sites.items()
+                        if other.get('build') and other['entity']==site['entity'] and not self.entities[other_id]
+                        and all(t in factory['researched'] for t in other.get('requires',[])))
+                    choice = self.ensure(site['entity'], min(remaining,self.plan.get('construction_batch_size',1)))
                 else:
                     choice = self.at(sid, dict(type='place', direction=site.get('direction','north')), 'build')
                 if choice:
@@ -431,6 +501,10 @@ class Runner:
         self.actor = journal.state.get('actor')
         self.last_tick = journal.state.get('last_tick')
         self.last_reason = None
+        self.neutral_geometry = []
+        self.geometry_origin = None
+        self.geometry_tick = None
+        self.prototypes = {}
         self.started_tick = journal.state.get('started_tick')
         self.failures = Counter(journal.state.get('failures',{}))
         self.planner.stance_attempts.update(journal.state.get('stance_attempts',{}))
@@ -438,6 +512,7 @@ class Runner:
         if any(n>=3 for n in self.failures.values()):
             raise RuntimeError('Repeated failures require a corrected plan and a new journal')
         self.planner.service_intent = journal.state.get("service_intent")
+        self.planner.consumed_gather.update(journal.state.get("consumed_gather",[]))
 
     def poll(self):
         status = self.game.request('status', **({} if self.cursor.value is None else {'after': self.cursor.value}))
@@ -448,7 +523,7 @@ class Runner:
         self.journal.emit('observation', o)
         if o['paused'] or o['speed'] != 1 or not o.get('guard',{}).get('enabled'):
             raise RuntimeError('Runner requires normal-speed unpaused play with local guard enabled')
-        if o.get('version') != '0.5.1' or o.get('mods',{}).get('base') != '2.0.77':
+        if o.get('version') != '0.6.0' or o.get('mods',{}).get('base') != '2.0.77':
             raise RuntimeError('Controller/catalog version mismatch')
         if self.actor is not None and (o['actor_unit'] != self.actor or o['tick'] < self.last_tick):
             raise RuntimeError('Character or world changed; preserve episode and start a new one')
@@ -466,12 +541,15 @@ class Runner:
                 raise RuntimeError('Pending job outcome unknown; no replay')
             self.journal.emit('job_reconciled', dict(skill=pending, result=job))
             self.journal.state['pending'] = None
+            if job['status']=='complete' and pending['key'].startswith('gather:'):
+                self.planner.consumed_gather.add(pending['key'].split(':',1)[1])
+                self.journal.state['consumed_gather']=sorted(self.planner.consumed_gather)
             self.journal.save()
             if job['status'] != 'complete':
                 if job.get('error') != 'defense_interrupt':
                     self.failures[pending['key']] += 1
-                    if pending['key'].startswith('approach:'):
-                        sid = pending['key'].split(':',1)[1]
+                    if pending['key'].startswith('approach:') or 'out_of_reach' in job.get('error',''):
+                        sid = pending['key'].rsplit(':',1)[1]
                         self.planner.stance_attempts[sid] += 1
                     self.planner.blocked_until[pending['key']] = o['tick'] + 600
                     self.journal.state.update(failures=dict(self.failures),
@@ -488,6 +566,21 @@ class Runner:
             return False
         f, r = self.game.request('factory'), self.game.request('research_state')
         self.journal.emit('factory', f)
+        # Nearby neutral wrecks/trees are absent from the owned-factory snapshot.
+        # Exclude their observed bounds from service stances without exposing any
+        # uncharted entity or pretending that a truncated scan proves clearance.
+        if (self.geometry_origin is None or o['tick']-self.geometry_tick>=600
+                or math.dist(tuple(o['position'][k] for k in ('x','y')),
+                             tuple(self.geometry_origin[k] for k in ('x','y')))>=8):
+            from .obstacles import neutral_bounds, SOLID_TYPES
+            scan=self.game.request('scan',radius=16,limit=100)
+            for e in scan['entities']:
+                if e.get('force')=='neutral' and e.get('type') in SOLID_TYPES and e['name'] not in self.prototypes:
+                    self.prototypes[e['name']]=self.game.request('prototype',entity=e['name'])
+            self.neutral_geometry=neutral_bounds(scan,self.prototypes)
+            self.geometry_origin=dict(o['position']);self.geometry_tick=o['tick']
+            self.journal.emit('nearby_geometry',dict(scan=scan,obstacles=self.neutral_geometry))
+        f['obstacles']=self.neutral_geometry
         if any(e.get('by_script') for e in f.get('research_events',{}).values()):
             raise RuntimeError('Script-completed research is not a compliant milestone')
         if self.planner.plan['target'] == 'rocket':
@@ -507,6 +600,16 @@ class Runner:
                 self.last_reason = self.planner.reason
             return False
         for action in choice['actions']:
+            if action['type']=='mine' and choice['key'].startswith('gather:'):
+                nearby=self.game.request('scan',name=action['entity'],radius=10,limit=100)
+                self.journal.emit('gather_preflight',nearby)
+                if not any(abs(e['x']-action['x'])<.2 and abs(e['y']-action['y'])<.2 for e in nearby['entities']):
+                    if nearby.get('truncated'):
+                        raise RuntimeError('Gather preflight is truncated; cannot infer absence')
+                    self.planner.consumed_gather.add(choice['key'].split(':',1)[1])
+                    self.journal.state['consumed_gather']=sorted(self.planner.consumed_gather)
+                    self.journal.save()
+                    return False
             if action['type']=='place':
                 check = self.game.request('placement', **{k:action[k]
                     for k in ('entity','x','y','direction') if k in action})
@@ -545,7 +648,7 @@ def main():
             'resumed':args.resume,
             'source_sha256':{name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
                 for name in ('client/autopilot.py','client/routes.py','client/materials.py',
-                             'client/progression.py','client/agent.py','data/catalog-2.0.77.json')}})
+                             'client/progression.py','client/agent.py','client/obstacles.py','data/catalog-2.0.77.json')}})
         try:
             with Agent() as game:
                 runner = Runner(game, Planner(plan), journal)

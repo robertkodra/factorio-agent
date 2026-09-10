@@ -26,3 +26,24 @@ class LayoutTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'route fluids'):
             assembly_cell('processing-unit')
         with self.assertRaises(ValueError):assembly_cell('automation-science-pack',(.5,0))
+
+    def test_buffered_smelting_geometry_has_a_complete_native_item_path(self):
+        from client.layouts import smelting_cell
+        cell=smelting_cell('iron-plate',(10,10),'iron')
+        sites={s['id']:s for s in cell['sites']}
+        drill=sites['iron-drill']['position'];feed=sites['iron-input']['position']
+        self.assertEqual((drill['x'],drill['y']+2),(feed['x'],feed['y']))
+        arm=sites['iron-inserter-in']['position']
+        self.assertEqual((arm['x'],arm['y']-1),(feed['x'],feed['y']))
+        self.assertTrue(sites['iron-furnace']['external_inputs'])
+        self.assertEqual(cell['materials']['inserter'],2)
+
+    def test_pole_chain_respects_wire_distance_after_quantization(self):
+        import math
+        from client.layouts import pole_line
+        for end in ((100.5,33.5),(-70.5,100.5),(.5,.5)):
+            line=pole_line((.5,.5),end)
+            path=[(.5,.5)]+[(s['position']['x'],s['position']['y']) for s in line['sites']]+[end]
+            self.assertTrue(all(math.dist(a,b)<=7.5 for a,b in zip(path,path[1:])))
+        with self.assertRaises(ValueError):pole_line((0,0),(10.5,10.5))
+        with self.assertRaises(ValueError):pole_line((.5,.5),(10.5,10.5),wire_distance=2)

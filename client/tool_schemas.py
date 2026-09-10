@@ -1,4 +1,4 @@
-"""Bounded MCP tool contracts for controller 0.5.0, with no generic operation tool.
+"""Bounded MCP tool contracts for controller 0.6.0, with no generic operation tool.
 
 These schemas restrict shape and bounds. The mod remains authoritative for
 unlocks, item costs, reach, collision, ownership, and all gameplay preconditions.
@@ -58,6 +58,7 @@ ACTIONS = [
 # Every entry is a fixed operation; caller-supplied op/code/console fields fail
 # validation. Keep all defaults in the mod so repeated job fingerprints match.
 TOOLS = {
+    "prototype": (obj(dict(entity=NAME), ("entity",)), "Read static entity geometry, fluid ports and supported mining/pole dimensions. Contains no world state."),
     "hello": (obj(), "Read controller version and supported operations; does not bind an engineer."),
     "bind": (obj(dict(player=integer(1, 65535))),
              "Bind a connected player's existing engineer under normal game rules. Default player is 1."),
@@ -105,4 +106,4 @@ TOOLS = {
              "Request a private server checkpoint by simple name. May overwrite the same name. "
              "Acknowledgement proves a save request, not completed file creation or a milestone."),
 }
-READ_ONLY = frozenset({"hello", "observe", "scan", "survey", "placement", "inspect", "factory", "research_state", "status"})
+READ_ONLY = frozenset({"prototype", "hello", "observe", "scan", "survey", "placement", "inspect", "factory", "research_state", "status"})
