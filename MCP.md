@@ -176,3 +176,10 @@ research completion records and actual rocket-launch events. Submit
 `{"type":"launch","entity":"rocket-silo","x":0,"y":0}` only for a real, ready,
 owned silo at its actual reachable coordinates. The example coordinates are
 placeholders. Successful submission/order is not launch completion.
+
+
+Controller 0.6.0 adds the seventeenth fixed operation, `prototype`, taking only
+`entity` and returning static collision size, fluid ports and applicable pole
+or drill ranges. It exposes no map state. `factory` additionally reports owned
+fluid connections, segment IDs/locks, normal mining targets in charted chunks,
+and actual machine crafting/counters. Unknown entity names are rejected.

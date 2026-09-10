@@ -32,7 +32,7 @@ Start with one local MCP server around the existing controller. Multiple indepen
 | Session | Status, cancellation, explicit pause/resume, checkpoint, recovery | Fixed commands exist; portable orchestration and broader recovery tests pending |
 | Performance | Timing, throughput, starvation/fuel/power diagnostics | Existing logs; sustained throughput and bottleneck metrics pending |
 
-The optional [MCP stdio facade](MCP.md) wraps the fixed RCON client using the official Python SDK. It exposes 16 schema-validated tools and persistent RCON transport, including local placement and charted water/pollution observations, with no generic Lua, shell, or raw-console tool. Submission returns immediately; status/cancel operate while a tick job is active. Uncertain mutations must be reconciled by job ID instead of replayed. SDK/stdio/socket tests, historical-save compatibility and a [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) pass. Fresh automated red/green production remains pending. The archived upstream FactorioMCP exposed unrestricted Lua and remains unsuitable for new-policy runs.
+The optional [MCP stdio facade](MCP.md) wraps the fixed RCON client using the official Python SDK. It exposes 17 schema-validated tools and persistent RCON transport, including local placement and charted water/pollution observations, with no generic Lua, shell, or raw-console tool. Submission returns immediately; status/cancel operate while a tick job is active. Uncertain mutations must be reconciled by job ID instead of replayed. SDK/stdio/socket tests, historical-save compatibility and a [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) pass. Fresh automated red/green production remains pending. The archived upstream FactorioMCP exposed unrestricted Lua and remains unsuitable for new-policy runs.
 
 ## Next implementation order
 
@@ -78,3 +78,16 @@ item cells and production-window capacity sizing are available. This replaces
 the earlier claims that launch actions and all supply scheduling were missing.
 Automatic map-wide layout, resource expansion, connected fluid construction,
 repeated enemy survival and a live rocket remain unfinished.
+
+
+## Buffered production implementation update
+
+Controller 0.6.0 adds static prototype/port metadata, directed fluid-connection
+validation, observed mining targets, ordinary powered smelting layouts and
+stocked item cells. The scheduler now batches construction procurement, harvests
+explicitly surveyed consumable natural sites, prioritizes power before component
+production, and considers usable stock when choosing collection trips. Native
+craft-rate auditing separates machine evidence from whole-factory item counts.
+See [the practice report](knowledge/production-oil-001.md). This supersedes older
+claims above that every power/fluid planning capability is absent; a connected
+oil chain, blue-consuming research and a launch still require live proof.

@@ -1,5 +1,9 @@
 # Factorio knowledge base
 
+Current development: [buffered production and fluid observations](production-oil-001.md).
+Controller 0.6.0 supersedes the older implementation versions below. Historical
+reports retain their original claims; oil and a rocket are still unverified.
+
 Latest implementation: [persistent factory controller and rocket planning](rocket-controller-001.md).
 Controller 0.5.1 adds native stack transfers, durable job receipts, research/launch
 evidence and a persistent production scheduler. Read that report for current

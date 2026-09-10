@@ -41,10 +41,17 @@ def corridor(start,goal,network):
 
 
 def service_stances(site,entities):
-    p=site['position'];options=[site['stand']]
-    for radius in (3,4,5):
+    p=site['position'];stand=site['stand']
+    if site.get('gather') and distance(p,stand)>2:
+        scale=2/distance(p,stand)
+        stand={k:p[k]+(stand[k]-p[k])*scale for k in ('x','y')}
+    options=[stand]
+    # Natural-entity reach is shorter than the generic factory service radius.
+    # Leave margin for the normal walking arrival tolerance.
+    for radius in ((1.5,2) if site.get('gather') else (3,4,5)):
         for dx,dy in ((1,0),(0,1),(-1,0),(0,-1),(1,1),(-1,1),(-1,-1),(1,-1)):
-            options.append({'x':p['x']+radius*dx,'y':p['y']+radius*dy})
+            scale=radius/math.hypot(dx,dy) if site.get('gather') else radius
+            options.append({'x':p['x']+scale*dx,'y':p['y']+scale*dy})
     result=[]
     for option in options:
         if any(e.get('box') and

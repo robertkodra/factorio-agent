@@ -10,6 +10,28 @@ git switch -c codex/next-milestone
 
 Read [POLICY.md](POLICY.md), [ROADMAP.md](ROADMAP.md), and [knowledge/README.md](knowledge/README.md). Set Git to your own GitHub-provided no-reply identity before committing. Never copy another machine's credentials or local configuration.
 
+## Latest state — controller 0.6.0
+
+Read [buffered production and fluid observations](knowledge/production-oil-001.md)
+and [the private plan format](plans/AUTOPILOT.md) before the older history below.
+The latest checkpoint practice completed Electric mining drill and Automation 2
+through labs. Two electric smelting cells, five buffered intermediate cells,
+three green assemblers, four labs and two steam engines were live-verified.
+The corrected final controller phase completed 41 jobs without execution failure;
+earlier failures and normal movement recoveries remain recorded.
+
+The checkpoint and its hash are verified; server and viewer are stopped, and
+the private ledger is closed. Start a new ledger for continuation. The source
+checkpoint was preserved. Do not use a gameplay pause to initialize this user's
+next run; record startup waits and any development restarts separately.
+
+Next work is a real oil survey and connected oil/blue-science production, plus
+stronger transport and navigation. Neutral wrecks must be included in local
+collision observations; reaching a factory-only stance is not proof of a clear
+route. Keep Qwen in shadow until separately validated. A rocket, later science
+and competitive performance remain unproven. Older notes below retain their
+historical stopping points and are superseded by this section.
+
 ## macOS with Steam
 
 The launcher currently supports the macOS Steam installation layout and resolves the current home directory automatically. Other operating systems and other Factorio versions require compatibility work. Factorio itself and its assets are not included.
