@@ -127,3 +127,13 @@ obstacles returned by a bounded charted scan. Static geometry is fetched through
 the fixed `prototype` operation and cached. The scan refreshes after movement
 or ten game seconds. This does not certify a route: a truncated scan can omit
 obstacles, and neutral geometry outside that local sample remains unknown.
+
+Optional `local_transfer_radius` accepts 0 through 3 tiles, default 0. For an
+observed existing inventory within that radius, the planner can put/take from
+its current position instead of first walking to the configured stance. Normal
+game reach checks still apply; after a reach/approach failure the planner uses
+stance-based navigation for that site. This does not affect mining or building.
+
+Lab supplies prioritize the scarcest required colour across the configured labs.
+Available intermediate pickups are batched to reduce repeated collection trips.
+Neither policy guarantees continuous research without connected ingredient flow.

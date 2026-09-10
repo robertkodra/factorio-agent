@@ -40,6 +40,9 @@ def load_plan(path):
         raise ValueError('Construction batch size must be 1-20')
     if type(plan.get('clear_belt_trees',False)) is not bool:
         raise ValueError('clear_belt_trees must be boolean')
+    radius=plan.get('local_transfer_radius',0)
+    if isinstance(radius,bool) or not isinstance(radius,(int,float)) or not 0<=radius<=3:
+        raise ValueError('Local transfer radius must be between 0 and 3 tiles')
     ids = set()
     for s in plan['sites']:
         if not isinstance(s.get('id'), str) or s['id'] in ids or not isinstance(s.get('entity'), str):
@@ -109,9 +112,21 @@ class Planner:
 
     def at(self, sid, action, detail):
         site = self.sites[sid]
+        p = self.o['position']
+        # Avoid a service-position trip when already close to an owned inventory.
+        # This is only a scheduling shortcut: native can_reach_entity still
+        # decides whether the transfer is legal. A failed approach/transfer
+        # restores stance-based navigation for this site.
+        radius=self.plan.get('local_transfer_radius',0)
+        if (radius and action['type'] in ('put','take') and self.entities.get(sid)
+                and not self.stance_attempts[sid]
+                and math.hypot(p['x']-site['position']['x'],p['y']-site['position']['y'])<=radius):
+            self.service_intent=None
+            return self.skill(detail+':'+sid,
+                [dict(action,entity=site['entity'],**site['position'])],detail)
         # Travel and transfer are separate jobs: re-observe amounts after travel.
         options = service_stances(site, self.f['entities'] + self.f.get('obstacles',[]))
-        p, stand = self.o['position'], options[self.stance_attempts[sid] % len(options)]
+        stand = options[self.stance_attempts[sid] % len(options)]
         key = detail + ':' + sid
         if math.hypot(p['x'] - stand['x'], p['y'] - stand['y']) > .6:
             self.service_intent = dict(sid=sid, action=action, detail=detail)
@@ -211,7 +226,9 @@ class Planner:
                 choice = self.supply_cell(sid, missing, trail)
                 if choice:
                     return choice
-        pickup = max(missing, {'iron-plate':100,'copper-plate':100,'coal':60}.get(item,0))
+        pickup = max(missing, {'iron-plate':100,'copper-plate':100,'coal':60,
+            'iron-gear-wheel':100,'electronic-circuit':100,'copper-cable':200,
+            'transport-belt':100,'inserter':50}.get(item,0))
         def collection_cost(source):
             available=contents(self.entities[source['site']].get(source['inventory']))[item]-source.get('reserve',0)
             stand=self.sites[source['site']]['stand']
@@ -458,7 +475,13 @@ class Planner:
             if not labs:
                 self.reason = 'A configured powered lab is required'
                 return None
-            for ingredient in tech['ingredients']:
+            # Balance lab-ready research units across colours. Filling every
+            # red buffer first can postpone green production while all labs
+            # are already blocked on green packs.
+            ingredients=sorted(tech['ingredients'], key=lambda ingredient:
+                sum(contents(lab.get('input'))[ingredient['name']] for _,lab in labs)
+                / ingredient['amount'])
+            for ingredient in ingredients:
                 item = ingredient['name']
                 for sid, lab in sorted(labs, key=lambda p: contents(p[1].get('input'))[item]):
                     held = contents(lab.get('input'))[item]

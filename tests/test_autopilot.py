@@ -49,6 +49,28 @@ class FakeGame:
 
 
 class AutopilotTests(unittest.TestCase):
+    def test_nearby_transfer_skips_walk_but_failure_restores_service_stance(self):
+        p=Planner(dict(target='military-2',sites=[site()],local_transfer_radius=3))
+        o=observation()
+        f=dict(entities=[dict(name='stone-furnace',position=site()['position'])])
+        p.refresh(o,f,{'enabled_recipes':[]})
+        action=dict(type='take',item='iron-plate',count=1,inventory='output')
+        self.assertEqual(p.at('iron',action,'collect')['actions'][0]['type'],'take')
+        p.stance_attempts['iron']=1
+        self.assertEqual(p.at('iron',action,'collect')['actions'][0]['type'],'walk')
+        p.stance_attempts.clear();o['position']={'x':-1,'y':0}
+        self.assertEqual(p.at('iron',action,'collect')['actions'][0]['type'],'walk')
+
+    def test_lab_colour_shortage_is_served_before_topping_up_abundant_colour(self):
+        s=dict(id='lab',entity='lab',position={'x':3,'y':0},stand={'x':1,'y':0})
+        p=Planner(dict(target='military-2',sites=[s]))
+        o=observation();o['position']=s['stand'];o['inventory']=[
+            {'name':'automation-science-pack','count':20},{'name':'logistic-science-pack','count':20}]
+        f=dict(researched=[],research='military-2',progress=0,entities=[dict(
+            name='lab',type='lab',position=s['position'],input=[{'name':'automation-science-pack','count':9}])])
+        choice=p.choose(o,f,{'enabled_recipes':[]})
+        self.assertEqual(choice['actions'][0]['item'],'logistic-science-pack')
+
     def test_construction_walks_while_crafting_but_never_places_missing_item(self):
         s=dict(id='belt',entity='transport-belt',build=True,
                position={'x':10.5,'y':.5},stand={'x':10.5,'y':.5})

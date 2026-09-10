@@ -13,11 +13,13 @@ Read [POLICY.md](POLICY.md), [ROADMAP.md](ROADMAP.md), and [knowledge/README.md]
 ## Current development — controller 0.7.0
 
 Read [belt-fed production development](knowledge/belt-production-001.md) and the
-updated [strategy](knowledge/strategy.md). Source 0.7.0 is unit-tested; the current
-checkpoint practice began on 0.6.0 and its private ledger remains open. Check
-live server/controller identity and active journals before continuing; do not
-assume the older stopped state below still applies. Next is a continuous iron
-return with native underground pairing, then connected construction/science supply.
+updated [strategy](knowledge/strategy.md). Controller 0.7.0 is installed and its
+underground crossing and continuous iron return were verified live. The 0.6.0
+ledger closed with its failures preserved; a new checkpoint continuation is
+open. Check live server identity and active journals before continuing. A single
+production scheduler is feeding science while the game remains unpaused.
+Next are connected copper/construction supplies and fewer ingredient trips.
+Do not assume the older stopped states below still apply.
 
 ## Latest state — controller 0.6.0
 

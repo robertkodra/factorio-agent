@@ -54,5 +54,31 @@ See [the updated strategy](strategy.md). Favor output and useful work during
 planning over constructing long empty belts. Qwen remains outside production
 inputs; these changes improve controller policies, not model weights.
 
-The connected iron return, later copper/steel supply, autonomous science,
-underground live pairing, repeated enemy response and a rocket still need proof.
+## Continuation on controller 0.7.0
+
+The initial ledger closed after about 32.4 game minutes, with 444 terminal jobs:
+427 completed and 17 failed. No new damage, death or gameplay pause transition
+was recorded. A verified checkpoint was saved, then the server was stopped and
+restarted to install 0.7.0. This development interruption is retained separately;
+the continuation is not a clean timed run.
+
+Logistics completed through normal research. An earlier attempt to craft its
+locked underground recipe failed without spending items and remains recorded.
+The installed underground endpoints report reciprocal native neighbours, and
+iron was observed on both ends. The return belt now feeds the gear and circuit
+input buffers and a nearby construction reserve.
+
+Replacing the single-inserter unloading choke with continuous belt improved a
+later three-minute sample to about 129.6 iron plates/minute. This is a shorter,
+different operating interval, not a controlled speed comparison or proof of the
+row's nominal 150/minute. Some output remains backed up as downstream demand
+and transfers limit consumption.
+
+The production scheduler now balances required science colours before topping
+up abundant packs, and takes larger available intermediate batches to amortize
+travel. An optional nearby-inventory transfer avoids unnecessary service-stance
+walks; the native reach check remains authoritative. These changes have unit
+coverage; their effect on full-run completion time still needs measurement.
+
+Connected copper/steel supply, autonomous science, repeated enemy response and
+a rocket still need proof. Downstream ingredient hauling remains a major limit.
