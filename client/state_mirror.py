@@ -14,7 +14,7 @@ ENTITY_FIELDS = {
                   'box', 'pickup', 'drop', 'belt_type', 'neighbour_id',
                   'belt_shape', 'transport_lines', 'inserter_ports'),
     'inventory': ('fuel', 'burner', 'input', 'output', 'chest', 'chest_slots', 'lines', 'fluids',
-                  'inventory_slots', 'stack_sizes'),
+                  'inventory_slots', 'stack_sizes', 'contents_accessible_only'),
     'power': ('energy', 'electric_network_id', 'status', 'status_name'),
     'production': ('recipe', 'crafting', 'products_finished', 'mining_target',
                    'crafting_speed', 'productivity_bonus'),

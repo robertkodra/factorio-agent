@@ -5,6 +5,7 @@ contents. Old journals do not contain them. Absence therefore means unknown.
 Capacity bounds apply to a specified single-material route, not a whole factory.
 """
 from copy import deepcopy
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -90,6 +91,8 @@ def buffer_room(node, item):
     slots = inventory.get('inventory_slots')
     if isinstance(slots, list):
         # Complete list of accessible slots, after the chest bar; filters explicit.
+        if type(inventory.get('chest_slots')) is not int or len(slots)!=inventory['chest_slots']:
+            return dict(lower=0, upper=None, needed=['complete_accessible_slot_list'])
         room = 0
         for slot in slots:
             if (not isinstance(slot, dict) or 'filter' not in slot or
@@ -108,6 +111,10 @@ def buffer_room(node, item):
                 room += size - slot['count']
         return dict(lower=room, upper=room, needed=[])
     count = inventory.get('chest_slots'); contents = item_counts(inventory.get('chest'))
+    # get_contents can include items in barred slots. Those cannot occupy the
+    # accessible-slot budget unless the collector explicitly excluded them.
+    if inventory.get('contents_accessible_only') is not True:
+        return dict(lower=0, upper=None, needed=['contents_excluding_barred_slots'])
     if type(count) is not int or count < 0 or contents is None:
         return dict(lower=0, upper=None, needed=['accessible_slot_count_and_contents'])
     if any(type(sizes.get(name)) is not int or sizes[name] <= 0 for name in contents):
@@ -286,7 +293,6 @@ def route_capacity(flow, route, item, requested):
 
 def replay_flow(source, output):
     """Read every retained mirror frame without choosing historical site IDs."""
-    import hashlib
     from .agent import ROOT
     from .mirror_log import Reconstructor
     from .production_graph import build_graph
@@ -294,6 +300,8 @@ def replay_flow(source, output):
     if ROOT/'runtime' not in output.parents:
         raise ValueError('Flow evidence must remain under ignored runtime storage')
     output.mkdir(parents=True,exist_ok=False)
+    implementation={name:hashlib.sha256((Path(__file__).parent/name).read_bytes()).hexdigest()
+                    for name in ('material_flow.py','production_graph.py','state_mirror.py','mirror_log.py')}
     reader=Reconstructor();hasher=hashlib.sha256();results=[];previous=None
     try:
         with source.open('rb') as stream:
@@ -325,8 +333,11 @@ def replay_flow(source, output):
         with source.open('rb') as stream:
             for chunk in iter(lambda:stream.read(1024*1024),b''):after.update(chunk)
         if after.hexdigest()!=original:raise ValueError('Source changed during replay')
+        if any(hashlib.sha256((Path(__file__).parent/name).read_bytes()).hexdigest()!=value
+               for name,value in implementation.items()):raise ValueError('Implementation changed during replay')
         report=dict(schema=1,offline_only=True,live_calls=0,source_sha256=original,
-                    source_unchanged=True,frames=results,positive_rate_guarantee=False)
+                    source_unchanged=True,implementation_sha256=implementation,
+                    frames=results,positive_rate_guarantee=False)
         (output/'report.json').write_text(json.dumps(report,indent=2)+'\n')
         return report
     except BaseException as exc:
@@ -356,7 +367,7 @@ def diagnose(flow):
         facts = entity['facts']; structure = facts['structure']; inventory = facts.get('inventory', {})
         if structure['name'] in ('stone-furnace','steel-furnace','boiler'):
             fuel = item_counts(inventory.get('fuel')); burner = inventory.get('burner', {})
-            empty = fuel == {} and burner.get('remaining_burning_fuel') == 0
+            empty = fuel == {} and burner.get('remaining_energy') == 0
             status = facts.get('power', {}).get('status_name')
             findings.append(dict(case='coal_feed',entity=key,
                 status='supported_symptom' if empty and status=='no_fuel' else 'unknown',

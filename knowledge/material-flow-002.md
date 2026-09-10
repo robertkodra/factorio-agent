@@ -50,7 +50,7 @@ collector has been implemented or validated.
 |---|---|---|
 | Structure | `transport_lines` | At most four line records with `index`, `complete`, and bounded `outputs` containing observed entity/line pairs. Completeness applies to that line's direct outputs. External or missing owners are not added to the selected graph. |
 | Structure | `belt_shape`, `inserter_ports` | Native belt shape and explicitly resolved pickup/drop lane endpoints. |
-| Inventory | `inventory_slots`, `stack_sizes` | Complete accessible slot list after the chest bar, including filters, normal-quality item counts, and explicit item stack sizes. |
+| Inventory | `inventory_slots`, `stack_sizes`, `contents_accessible_only` | Complete accessible slot list after the chest bar, including filters, normal-quality item counts, and explicit stack sizes. Aggregate contents require explicit evidence that barred slots were excluded. |
 | Production | `crafting_speed`, `productivity_bonus` | Effective metadata for an output-rate upper bound; missing values remain unknown. |
 
 A future reviewed collector must resolve native transport-line aliases and
@@ -73,6 +73,9 @@ hard-coded site IDs, records per-frame diagnoses and source hashes, and refuses
 public output or overwriting an existing report directory. Corrupt checksums
 fail; unavailable or stale facts produce unknown results. Source tapes are never
 modified. Repeated per-frame results are samples, not distinct failure events.
+Reports bind the implementation hashes as well as input hashes and reject an
+implementation change during replay. Native burner energy uses the existing
+`remaining_energy` field; missing energy is not treated as zero.
 
 - Coal-feed diagnosis separates an observed fuel-starvation symptom from its
   unknown upstream cause. Empty fuel inventory alone is insufficient while a

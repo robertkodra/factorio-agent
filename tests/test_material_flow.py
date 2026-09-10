@@ -120,7 +120,7 @@ class MaterialFlowTests(unittest.TestCase):
     def test_mixed_buffer_capacity_needs_slots_and_stack_sizes(self):
         rows=block();g=flow(rows);box=g['entities']['entity:2'];self.assertIsNone(buffer_room(box,'copper-cable')['upper'])
         inv=box['facts']['inventory'];inv.update(stack_sizes={'iron-ore':50,'copper-cable':200},
-            chest=[dict(name='iron-ore',count=100)],chest_slots=2)
+            chest=[dict(name='iron-ore',count=100)],chest_slots=2,contents_accessible_only=True)
         self.assertEqual(buffer_room(box,'copper-cable')['upper'],0)
         inv['inventory_slots']=[dict(name='iron-ore',count=50,filter=None),dict(count=0,filter='iron-ore')]
         self.assertEqual(buffer_room(box,'copper-cable')['upper'],0)
@@ -129,7 +129,7 @@ class MaterialFlowTests(unittest.TestCase):
 
     def test_mixed_buffer_diagnosis_has_no_site_ids(self):
         rows=block();rows[1].update(chest=[dict(name='iron-plate',count=200)],chest_slots=2,
-            stack_sizes={'iron-plate':100,'copper-cable':200})
+            stack_sizes={'iron-plate':100,'copper-cable':200},contents_accessible_only=True)
         rows[3].update(type='assembling-machine',name='assembling-machine-1',recipe='electronic-circuit')
         for offset in (0,1000):
             copied=deepcopy(rows)
@@ -141,9 +141,19 @@ class MaterialFlowTests(unittest.TestCase):
         rows=block();rows[3].update(name='stone-furnace',fuel=[],status_name='no_fuel')
         f=next(f for f in diagnose(flow(rows)) if f['case']=='coal_feed')
         self.assertEqual(f['status'],'unknown')
-        rows[3]['burner']={'remaining_burning_fuel':0}
+        rows[3]['burner']={'remaining_energy':0}
         f=next(f for f in diagnose(flow(rows)) if f['case']=='coal_feed')
         self.assertEqual(f['status'],'supported_symptom');self.assertEqual(f['cause'],'unknown')
+
+    def test_barred_or_unreported_slots_cannot_manufacture_a_full_buffer(self):
+        g=flow(block());box=g['entities']['entity:2'];inv=box['facts']['inventory']
+        inv.update(stack_sizes={'iron-plate':100,'copper-cable':200},chest_slots=2,
+                   chest=[dict(name='iron-plate',count=200)])
+        self.assertIsNone(buffer_room(box,'copper-cable')['upper'])
+        inv['inventory_slots']=[dict(count=0,filter=None)]
+        self.assertIsNone(buffer_room(box,'copper-cable')['upper'])
+        inv['inventory_slots'].append(dict(count=0,filter=None))
+        self.assertEqual(buffer_room(box,'copper-cable')['upper'],400)
 
     def test_science_mixture_does_not_prove_stall_and_separate_lanes_do_not_merge(self):
         red=dict(name='automation-science-pack',count=4);green=dict(name='logistic-science-pack',count=3)
