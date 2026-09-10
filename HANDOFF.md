@@ -12,13 +12,19 @@ Read [POLICY.md](POLICY.md), [ROADMAP.md](ROADMAP.md), and [knowledge/README.md]
 
 ## Current development — controller 0.7.0
 
-Read [restoring useful science flow](knowledge/science-flow-001.md) for the latest
-state. Engine and Fluid handling completed through labs; Oil gathering is running.
-The circuit assembler now receives cable directly. Separate red/green lanes on
-the lab spine were verified, with four working labs. The sole executor is supplying
-this research while retaining factory defense monitoring. Inspect its current
-handle and journal before any handoff. The game is unpaused; the exact ledger
-remains open and the oil-prerequisite checkpoint is verified.
+Read the [paused-session retrospective](knowledge/session-retrospective-001.md)
+first. The user explicitly requested a pause and learning review. The game is
+paused, the gameplay executor exited, and the passive watcher stopped. The final
+checkpoint passed integrity/hash verification and the private run ledger is
+closed. Do not resume automatically; wait for the user's continuation request
+and start a new continuation ledger while preserving the checkpoint and failures.
+
+Engine and Fluid handling completed through labs; Oil gathering is about 21
+percent complete at the paused snapshot. The engineer has full health. Circuit
+cable direct feed and separate red/green lanes were verified during the sequence.
+Oil production, later science and a rocket remain unverified. The reports below
+retain historical observations; references to running or unpaused executors are
+superseded by this stopping point.
 
 The preceding [supply recovery sequence](knowledge/supply-recovery-001.md) restored
 eight iron furnaces and four steam engines. Its 23-percent Engine stopping point

@@ -1,5 +1,9 @@
 # Factorio knowledge base
 
+Current state: [paused practice and consolidated lessons](session-retrospective-001.md).
+The user requested a pause; the checkpoint is verified and the executor stopped.
+Do not resume gameplay automatically. Earlier running-state notes below are historical.
+
 Latest progress: [restoring useful science flow](science-flow-001.md).
 Engine and Fluid handling completed; Oil gathering is running after correcting
 circuit input starvation and separating the science belt lanes.
