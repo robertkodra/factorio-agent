@@ -13,7 +13,10 @@ Read [POLICY.md](POLICY.md), [ROADMAP.md](ROADMAP.md), and [knowledge/README.md]
 ## Current development — controller 0.7.0
 
 Read the [paused-session retrospective](knowledge/session-retrospective-001.md)
-first. The user explicitly requested a pause and learning review. The game is
+first, then the [improvement analysis](knowledge/improvement-plan-001.md).
+The latter adds a fresh cadence/stock audit, a downloaded reference replay and
+prioritized proposed changes; it does not claim those changes are implemented.
+The user explicitly requested a pause and learning review. The game is
 paused, the gameplay executor exited, and the passive watcher stopped. The final
 checkpoint passed integrity/hash verification and the private run ledger is
 closed. Do not resume automatically; wait for the user's continuation request

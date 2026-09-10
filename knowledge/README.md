@@ -1,5 +1,9 @@
 # Factorio knowledge base
 
+Latest analysis: [controller and factory improvement plan](improvement-plan-001.md).
+A fresh cadence/stock audit, speedrunner reference archive inspection, phased
+factory proposal and implementation priorities extend the paused retrospective.
+
 Current state: [paused practice and consolidated lessons](session-retrospective-001.md).
 The user requested a pause; the checkpoint is verified and the executor stopped.
 Do not resume gameplay automatically. Earlier running-state notes below are historical.
