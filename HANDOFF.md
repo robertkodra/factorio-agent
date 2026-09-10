@@ -10,7 +10,20 @@ git switch -c codex/next-milestone
 
 Read [POLICY.md](POLICY.md), [ROADMAP.md](ROADMAP.md), and [knowledge/README.md](knowledge/README.md). Set Git to your own GitHub-provided no-reply identity before committing. Never copy another machine's credentials or local configuration.
 
-## Current offline review — mirror source 0.8.1
+## Current offline development — production graph
+
+PR 5 merged at `dcce763`, followed by PR 6 at `059ee8a`, after the alarm-recency and
+protocol-failure fixes. The graph branch begins from that reviewed baseline.
+Read [the first graph slice](knowledge/production-graph-001.md). It analyzes private
+mirror journals without connecting to Factorio; geometric candidates do not prove
+flow or throughput. Belt-lane mapping and capacity remain unresolved.
+
+Keep the source 0.8.1 mod uninstalled and gameplay stopped until launcher
+provenance and the measurement harness have been reviewed. This is a hard live
+gate; offline graph work may continue. Preserve requested-rate feasibility and
+dual production/sink accounting as specified in the graph report.
+
+## Previous offline review — mirror source 0.8.1
 
 Read [the state-mirror report](knowledge/state-mirror-001.md). The 0.8 baseline is
 reviewable in PR 5 at `074d1e1`, preserving the earlier draft stack. The separate
