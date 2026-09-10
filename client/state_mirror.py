@@ -11,10 +11,13 @@ import threading
 
 ENTITY_FIELDS = {
     'structure': ('id', 'name', 'type', 'position', 'direction', 'health', 'max_health',
-                  'box', 'pickup', 'drop', 'belt_type', 'neighbour_id'),
-    'inventory': ('fuel', 'burner', 'input', 'output', 'chest', 'chest_slots', 'lines', 'fluids'),
+                  'box', 'pickup', 'drop', 'belt_type', 'neighbour_id',
+                  'belt_shape', 'transport_lines', 'inserter_ports'),
+    'inventory': ('fuel', 'burner', 'input', 'output', 'chest', 'chest_slots', 'lines', 'fluids',
+                  'inventory_slots', 'stack_sizes', 'contents_accessible_only'),
     'power': ('energy', 'electric_network_id', 'status', 'status_name'),
-    'production': ('recipe', 'crafting', 'products_finished', 'mining_target'),
+    'production': ('recipe', 'crafting', 'products_finished', 'mining_target',
+                   'crafting_speed', 'productivity_bonus'),
 }
 PLAYER_FIELDS = ('position', 'health', 'max_health', 'crafting', 'paused', 'speed', 'guard')
 INVENTORY_FIELDS = ('inventory', 'ammo', 'guns')

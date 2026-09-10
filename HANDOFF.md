@@ -1,5 +1,12 @@
 # Setup and continuation
 
+Current offline draft: [material-flow evidence](knowledge/material-flow-002.md).
+PR 7 is merged as the limited topology foundation. The next flow review unit
+keeps missing lane, slot and historical motion evidence unknown; it is not a
+compiler. Gameplay is stopped, with a verified private shutdown checkpoint.
+Source 0.8.1 remains uninstalled. Trusted-launcher and measurement-harness review
+are still required before any live measurement.
+
 Clone the public repository into a new directory. Its history is independent of the private experiments; do not merge or push those old branches here.
 
 ```sh
