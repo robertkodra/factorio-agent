@@ -20,6 +20,7 @@ class FactoryDefense:
         self.state['event_seq']=seq
         alarm=self.state.get('alarm')
         damage={d['id']:d for d in (alarm or {}).get('damage',[])}
+        damage.pop(record['id'],None)
         damage[record['id']]=dict(record)
         self.state['alarm']=dict(tick=max(record['tick'],(alarm or {}).get('tick',0)),
             damage=list(damage.values())[-32:])
@@ -42,6 +43,7 @@ class FactoryDefense:
             alarm=self.state.get('alarm') or {}
             combined={d['id']:d for d in alarm.get('damage',[])}
             for d in damage:
+                combined.pop(d['id'],None)
                 combined[d['id']]=d
             self.state['alarm']=dict(tick=max(tick,alarm.get('tick',0)),
                                      damage=list(combined.values())[-32:])

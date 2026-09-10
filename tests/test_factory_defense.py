@@ -9,6 +9,35 @@ def factory(tick,health):
 
 
 class FactoryDefenseTests(unittest.TestCase):
+    def test_bounded_native_alarm_retains_recently_updated_entity(self):
+        d=FactoryDefense()
+        for seq in range(1,33):
+            d.event(dict(seq=seq,tick=seq,id=seq,health=100))
+        update=dict(seq=33,tick=33,id=1,health=50)
+        d.event(update)
+        self.assertFalse(d.event(update))
+        d.event(dict(seq=34,tick=34,id=33,health=100))
+        damage=d.state['alarm']['damage']
+        self.assertEqual(len(damage),32)
+        self.assertEqual([e['id'] for e in damage],list(range(3,33))+[1,33])
+        self.assertEqual(damage[-2]['health'],50)
+
+    def test_bounded_health_alarm_retains_recently_updated_entity(self):
+        d=FactoryDefense()
+        f=dict(tick=1,entities=[dict(id=i,name='transport-belt',type='transport-belt',
+               health=100,position=dict(x=i,y=0)) for i in range(1,34)])
+        d.observe(f)
+        for seq in range(1,33):
+            d.event(dict(seq=seq,tick=seq,id=seq,health=100))
+        f['tick']=34
+        f['entities'][0]['health']=50
+        f['entities'][-1]['health']=90
+        d.observe(f)
+        damage=d.state['alarm']['damage']
+        self.assertEqual(len(damage),32)
+        self.assertEqual([e['id'] for e in damage],list(range(3,33))+[1,33])
+        self.assertEqual(damage[-2]['health'],50)
+
     def test_remote_damage_detected_without_engineer_damage_and_repair_is_not_attack(self):
         d=FactoryDefense()
         self.assertEqual(d.observe(factory(10,100)),[])
