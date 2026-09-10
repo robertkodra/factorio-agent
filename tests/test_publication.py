@@ -5,10 +5,30 @@ import subprocess
 import tempfile
 import unittest
 
+from scripts.check_publication import content_issues, file_issues
+
 GUARD = Path(__file__).resolve().parents[1] / 'scripts/check_publication.py'
 
 
 class PublicationTests(unittest.TestCase):
+    def test_root_license_is_text_checked_without_allowing_other_unreviewed_files(self):
+        self.assertEqual(file_issues('LICENSE','100644',b'MIT License\n'),set())
+        self.assertIn('unreviewed-file-type',file_issues('unknown','100644',b'text'))
+        self.assertIn('unreviewed-file-type',file_issues('other/LICENSE','100644',b'text'))
+        self.assertIn('binary-content',file_issues('LICENSE','100644',b'\x00'))
+        self.assertIn('non-regular-file',file_issues('LICENSE','120000',b'target'))
+        self.assertIn('private-key',file_issues('LICENSE','100644',b'-----BEGIN '+b'PRIVATE KEY-----'))
+
+    def test_github_service_and_user_noreply_addresses_pass(self):
+        metadata=b'author Fixture <fixture@users.noreply.github.com>\ncommitter GitHub <noreply@github.com>\n'
+        self.assertEqual(content_issues(metadata),set())
+
+    def test_service_exception_does_not_allow_other_addresses_or_lookalikes(self):
+        addresses=[b'person'+b'@github.com', b'other+noreply'+b'@github.com',
+                   b'noreply'+b'@github.com.example.invalid', b'person'+b'@example.invalid']
+        for address in addresses:
+            self.assertIn('non-noreply-email',content_issues(b'committer Fixture <'+address+b'>'))
+
     def test_removed_private_file_is_still_rejected_in_history(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

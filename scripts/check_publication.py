@@ -23,7 +23,8 @@ def git(*args):
 
 def content_issues(data):
     issues = {name for name, pattern in CONTENT_RULES.items() if pattern.search(data)}
-    if any(match.group(1).lower() != b'users.noreply.github.com' for match in EMAIL.finditer(data)):
+    if any(match.group(1).lower() != b'users.noreply.github.com'
+           and match.group(0).lower() != b'noreply@github.com' for match in EMAIL.finditer(data)):
         issues.add('non-noreply-email')
     return issues
 
@@ -38,7 +39,7 @@ def file_issues(name, mode, data):
         issues.add('private-artifact')
     if mode not in ('100644', '100755'):
         issues.add('non-regular-file')
-    if path.suffix not in TEXT_SUFFIXES and name != '.gitignore':
+    if path.suffix not in TEXT_SUFFIXES and name not in {'.gitignore', 'LICENSE'}:
         issues.add('unreviewed-file-type')
     try:
         data.decode('utf-8')
