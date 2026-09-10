@@ -40,3 +40,13 @@ class FactoryDefenseTests(unittest.TestCase):
         d.observe(dict(tick=35,entities=[]))
         self.assertEqual(d.state['alarm']['damage'][0]['id'],9)
         self.assertEqual(d.state['alarm']['tick'],30)
+
+    def test_health_poll_preserves_other_pending_native_destruction(self):
+        d=FactoryDefense();d.observe(factory(10,100))
+        d.event(dict(seq=1,tick=20,id=9,entity='stone-furnace',
+                     position=dict(x=110,y=100),kind='destroyed'))
+        d.observe(factory(30,90))
+        alarm={e['id']:e for e in d.state['alarm']['damage']}
+        self.assertEqual(set(alarm),{1,9})
+        self.assertEqual(alarm[9]['kind'],'destroyed')
+        self.assertEqual(d.state['alarm']['tick'],30)

@@ -1,7 +1,7 @@
 """Detect new damage to observed owned buildings and service a defense station.
 
-Health polling is not an enemy-origin attribution or a native damage-event feed.
-One-shot destruction between samples and damage hidden by repair can be missed.
+Native events preserve destruction and damage repaired between health samples.
+Health polling is a fallback, never an attribution of the enemy's origin.
 """
 import math
 
@@ -39,7 +39,12 @@ class FactoryDefense:
                     health=e['health'],lost=previous[key]-e['health']))
         self.state.update(health=current,tick=tick)
         if damage:
-            self.state['alarm']=dict(tick=tick,damage=damage)
+            alarm=self.state.get('alarm') or {}
+            combined={d['id']:d for d in alarm.get('damage',[])}
+            for d in damage:
+                combined[d['id']]=d
+            self.state['alarm']=dict(tick=max(tick,alarm.get('tick',0)),
+                                     damage=list(combined.values())[-32:])
         return damage
 
     def response(self, observation, factory, plan):
