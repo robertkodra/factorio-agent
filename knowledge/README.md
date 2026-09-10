@@ -1,5 +1,11 @@
 # Factorio knowledge base
 
+Latest offline implementation: [smelting state mirror](state-mirror-001.md).
+The 0.8 baseline and source-only 0.8.1 observation/cache slice have separate review
+boundaries. Replay is measured; no gameplay was resumed. Await review before live
+installation or smelting construction.
+
+
 Current direction and state: [architecture review response](review-response-001.md).
 Controller 0.8.0 completed Oil Gathering in checkpoint practice. That development
 ledger is closed with a verified save; no gameplay scheduler is active and no

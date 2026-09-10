@@ -630,7 +630,7 @@ class Runner:
         self.journal.emit('observation', o)
         if o['paused'] or o['speed'] != 1 or not o.get('guard',{}).get('enabled'):
             raise RuntimeError('Runner requires normal-speed unpaused play with local guard enabled')
-        if o.get('version') not in ('0.6.0','0.7.0','0.8.0') or o.get('mods',{}).get('base') != '2.0.77':
+        if o.get('version') not in ('0.6.0','0.7.0','0.8.0','0.8.1') or o.get('mods',{}).get('base') != '2.0.77':
             raise RuntimeError('Controller/catalog version mismatch')
         if o['version']=='0.6.0' and any('belt_type' in s for s in self.planner.sites.values()):
             raise RuntimeError('Explicit underground endpoints require controller 0.7.0')
@@ -662,10 +662,10 @@ class Runner:
             self.journal.save()
             guard=o.get('guard',{})
             try:
-                result=self.game.request('interrupt' if o['version']=='0.8.0' else 'cancel',id=pending['id'])
+                result=self.game.request('interrupt' if o['version'] in ('0.8.0','0.8.1') else 'cancel',id=pending['id'])
                 self.journal.emit('factory_defense_preempted',result)
             finally:
-                if o['version']!='0.8.0':
+                if o['version'] not in ('0.8.0','0.8.1'):
                     self.game.request('guard',enabled=True,**({'rally':guard['rally']} if guard.get('rally') else {}))
             return False
         if pending:
@@ -813,7 +813,7 @@ class Runner:
         self.journal.save()
         self.journal.emit('intent', job)
         result = self.game.request('submit', id=job['id'], actions=job['actions'],
-            **({'defense':choice['key'].startswith('factory-defense:')} if o['version']=='0.8.0' else {}))
+            **({'defense':choice['key'].startswith('factory-defense:')} if o['version'] in ('0.8.0','0.8.1') else {}))
         self.journal.emit('submitted', result)
         print(choice['key'], flush=True)
         return False

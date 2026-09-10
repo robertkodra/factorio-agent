@@ -1,3 +1,15 @@
+# Smelting state mirror 0.8.1 — offline review
+
+- Added bounded owned/charted entity reads, furnace recipe/burning-fuel state and
+  actor/surface/event fences without new gameplay actions.
+- Added a scoped state cache, independent domain freshness, paginated event
+  reconciliation, unknown-job resolution and stale-plan tokens.
+- Added read-only observation/polling adapters, compact checkpoints/deltas and
+  a retained-journal replay comparison. No game was resumed or mod installed.
+- See [measurement and limitations](knowledge/state-mirror-001.md). This separate
+  review unit is based on the 0.8 integration PR; no earlier draft was rewritten
+  or merged.
+
 # Controller 0.8.0 development — 2026-09-10
 
 - Added native owned-factory damage/destruction evidence and production preemption

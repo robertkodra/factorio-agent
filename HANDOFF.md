@@ -10,7 +10,17 @@ git switch -c codex/next-milestone
 
 Read [POLICY.md](POLICY.md), [ROADMAP.md](ROADMAP.md), and [knowledge/README.md](knowledge/README.md). Set Git to your own GitHub-provided no-reply identity before committing. Never copy another machine's credentials or local configuration.
 
-## Current review — controller 0.8.0
+## Current offline review — mirror source 0.8.1
+
+Read [the state-mirror report](knowledge/state-mirror-001.md). The 0.8 baseline is
+reviewable in PR 5 at `074d1e1`, preserving the earlier draft stack. The separate
+`codex/smelting-state-mirror` branch adds the bounded observation/cache slice.
+Source 0.8.1 was not installed and no game was resumed. Keep this review boundary;
+do not install or start a live smelting test before review. Exact replay outputs
+and source hashes remain under ignored runtime. The legacy scheduler still uses
+its prior observations and authored plans.
+
+## Prior review — controller 0.8.0
 
 Read [the architecture review response](knowledge/review-response-001.md) first.
 The installed controller and this branch's mod source are 0.8.0. This is a

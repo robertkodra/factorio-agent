@@ -1,6 +1,6 @@
 # Agent connection through MCP
 
-The optional stdio server exposes the 18 fixed controller operations to MCP
+The optional stdio server exposes the 19 fixed controller operations to MCP
 clients. It uses the [official Python SDK](https://github.com/modelcontextprotocol/python-sdk)
 and validates calls against the same JSON Schemas it advertises. The original
 RCON clients still use only the Python standard library.
@@ -51,6 +51,7 @@ console, or Lua arguments.
 | `bind`, `release` | Take control of an existing connected engineer or return it to the viewer |
 | `observe`, `scan`, `inspect` | Read engineer state and charted/reachable surroundings |
 | `survey`, `placement` | Read nearby charted water/pollution and local normal-placement preflight (controller 0.3.0+) |
+| `observe_entities` | Read up to 64 known owned entities by ID/position on charted terrain, with scoped state and missing IDs (0.8.1+) |
 | `factory`, `research_state` | Inspect production and completed research |
 | `guard` | Enable experimental normal-input bullet defense; off by default; limited live defense validated |
 | `submit` | Enqueue one bounded batch and return immediately |

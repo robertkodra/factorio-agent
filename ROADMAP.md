@@ -1,5 +1,9 @@
 # Progression and MCP roadmap
 
+The [state-mirror slice](knowledge/state-mirror-001.md) is now ready for offline review;
+its new observation contract is source-only. Do not advance to live construction
+until reviewed.
+
 The objective is repeatable normal-mechanics rocket completion. Military 2 and
 Oil Gathering have completed in checkpoint practice; connected oil production,
 later science and a launch remain unverified. Follow the
@@ -37,7 +41,7 @@ Start with one local MCP server around the existing controller. Multiple indepen
 | Session | Status, cancellation, explicit pause/resume, checkpoint, recovery | Fixed commands exist; portable orchestration and broader recovery tests pending |
 | Performance | Timing, throughput, starvation/fuel/power diagnostics | Existing logs; sustained throughput and bottleneck metrics pending |
 
-The optional [MCP stdio facade](MCP.md) wraps the fixed RCON client using the official Python SDK. It exposes 18 schema-validated tools and persistent RCON transport, including local placement and charted water/pollution observations, with no generic Lua, shell, or raw-console tool. Submission returns immediately; status/cancel operate while a tick job is active. Uncertain mutations must be reconciled by job ID instead of replayed. SDK/stdio/socket tests, historical-save compatibility and a [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) pass. Fresh automated red/green production remains pending. The archived upstream FactorioMCP exposed unrestricted Lua and remains unsuitable for new-policy runs.
+The optional [MCP stdio facade](MCP.md) wraps the fixed RCON client using the official Python SDK. It exposes 19 schema-validated tools and persistent RCON transport, including local placement and charted water/pollution observations, with no generic Lua, shell, or raw-console tool. Submission returns immediately; status/cancel operate while a tick job is active. Uncertain mutations must be reconciled by job ID instead of replayed. SDK/stdio/socket tests, historical-save compatibility and a [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) pass. Fresh automated red/green production remains pending. The archived upstream FactorioMCP exposed unrestricted Lua and remains unsuitable for new-policy runs.
 
 ## Next implementation order
 
