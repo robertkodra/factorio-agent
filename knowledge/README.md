@@ -1,5 +1,9 @@
 # Factorio knowledge base
 
+Current development: [belt-fed production and cadence](belt-production-001.md).
+The updated strategy adopts a fast hand-fed bootstrap before planned furnace
+blocks and a bus. Historical stopping points below remain historical.
+
 Current development: [buffered production and fluid observations](production-oil-001.md).
 Controller 0.6.0 supersedes the older implementation versions below. Historical
 reports retain their original claims; oil and a rocket are still unverified.

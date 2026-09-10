@@ -17,7 +17,8 @@ function M.prototype(name)
  end
  if p.type=='electric-pole' then
   out.wire_distance=p.get_max_wire_distance();out.supply_distance=p.get_supply_area_distance()
- elseif p.type=='mining-drill' then out.mining_radius=p.get_mining_drill_radius();out.mining_speed=p.mining_speed end
+ elseif p.type=='mining-drill' then out.mining_radius=p.get_mining_drill_radius();out.mining_speed=p.mining_speed
+ elseif p.type=='underground-belt' then out.max_underground_distance=p.max_underground_distance end
  return out
 end
 function M.connections(entity,force)

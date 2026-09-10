@@ -10,6 +10,15 @@ git switch -c codex/next-milestone
 
 Read [POLICY.md](POLICY.md), [ROADMAP.md](ROADMAP.md), and [knowledge/README.md](knowledge/README.md). Set Git to your own GitHub-provided no-reply identity before committing. Never copy another machine's credentials or local configuration.
 
+## Current development — controller 0.7.0
+
+Read [belt-fed production development](knowledge/belt-production-001.md) and the
+updated [strategy](knowledge/strategy.md). Source 0.7.0 is unit-tested; the current
+checkpoint practice began on 0.6.0 and its private ledger remains open. Check
+live server/controller identity and active journals before continuing; do not
+assume the older stopped state below still applies. Next is a continuous iron
+return with native underground pairing, then connected construction/science supply.
+
 ## Latest state — controller 0.6.0
 
 Read [buffered production and fluid observations](knowledge/production-oil-001.md)

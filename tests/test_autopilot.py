@@ -49,6 +49,52 @@ class FakeGame:
 
 
 class AutopilotTests(unittest.TestCase):
+    def test_construction_walks_while_crafting_but_never_places_missing_item(self):
+        s=dict(id='belt',entity='transport-belt',build=True,
+               position={'x':10.5,'y':.5},stand={'x':10.5,'y':.5})
+        second=dict(s,id='next-belt',position={'x':11.5,'y':.5},stand={'x':11.5,'y':.5})
+        p=Planner(dict(target='infrastructure',sites=[s,second]))
+        o=observation();o['crafting']=[{'recipe':'transport-belt','count':10}]
+        f={'entities':[],'researched':[]};r={'enabled_recipes':['transport-belt']}
+        self.assertEqual(p.choose(o,f,r)['actions'][0]['type'],'walk')
+        o['position']=s['stand']
+        self.assertIsNone(p.choose(o,f,r))
+        o['inventory']=[{'name':'transport-belt','count':2}]
+        self.assertEqual(p.choose(o,f,r)['actions'][0]['type'],'place')
+
+    def test_infrastructure_target_requires_every_belt_and_correct_direction(self):
+        g = FakeGame(); j = MemoryJournal()
+        s = dict(id='belt',entity='transport-belt',position={'x':.5,'y':.5},
+                 stand={'x':.5,'y':.5},build=True,direction='east')
+        p = Planner(dict(target='infrastructure',sites=[s]))
+        g.f['entities']=[dict(name='transport-belt',type='transport-belt',
+                              position=s['position'],direction=0)]
+        self.assertFalse(Runner(g,p,j).poll())
+        self.assertFalse(any(k=='target_verified' for k,_ in j.events))
+        g.f['entities'][0]['direction']=4
+        self.assertTrue(Runner(g,p,j).poll())
+
+    def test_belt_batch_preflights_every_tile_before_any_submission(self):
+        g = FakeGame(); j = MemoryJournal()
+        from client.belt_routes import belt_route
+        sites = belt_route([(.5,.5),(2.5,.5)], 'east')['sites']
+        p = Planner(dict(target='infrastructure',sites=sites))
+        g.o['position']={'x':.5,'y':.5}
+        g.o['inventory']=[{'name':'transport-belt','count':3}]
+        original = g.request
+        checks=[]
+        def request(op,**kw):
+            if op=='placement':
+                checks.append(kw)
+                return {'can_place':kw['x']!=1.5}
+            return original(op,**kw)
+        g.request=request
+        with self.assertRaisesRegex(RuntimeError,'footprint is blocked'):
+            Runner(g,p,j).poll()
+        self.assertEqual([q['x'] for q in checks],[.5,1.5])
+        self.assertFalse(any(op=='submit' for op,_ in g.calls))
+        self.assertIsNone(j.state['pending'])
+
     def test_transfer_is_replanned_after_travel_not_batched_with_stale_count(self):
         p=Planner({'target':'military-2','sites':[site()],
             'sources':[{'site':'iron','item':'iron-plate','inventory':'output'}]})

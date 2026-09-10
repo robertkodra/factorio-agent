@@ -7,10 +7,15 @@ def distance(a,b):
     return math.hypot(a['x']-b['x'],a['y']-b['y'])
 
 
-def corridor(start,goal,network):
+def corridor(start,goal,network,entities=()):
     if not network or distance(start,goal)<24:
         return [goal]
-    nodes=network['nodes'];edges=network['edges']
+    # Construction can occupy a previously clear waypoint. Move only such
+    # waypoints to a nearby observed unoccupied stance; native pathfinding still
+    # decides whether each leg is actually walkable.
+    nodes={name:service_stances({'position':point,'stand':point},entities)[0]
+           for name,point in network['nodes'].items()}
+    edges=network['edges']
     first=min(nodes,key=lambda n:distance(start,nodes[n]))
     last=min(nodes,key=lambda n:distance(goal,nodes[n]))
     adjacent={n:[] for n in nodes}
@@ -35,7 +40,8 @@ def corridor(start,goal,network):
         # corridor. Collision/path failure still stops the normal movement job.
         pieces=max(1,math.ceil(distance(previous,p)/24))
         for i in range(1,pieces+1):
-            result.append({k:previous[k]+(p[k]-previous[k])*i/pieces for k in ('x','y')})
+            point={k:previous[k]+(p[k]-previous[k])*i/pieces for k in ('x','y')}
+            result.append(service_stances({'position':point,'stand':point},entities)[0])
         previous=p
     return result
 
@@ -57,7 +63,7 @@ def service_stances(site,entities):
         if any(e.get('box') and
             e['box']['left_top']['x']-.25<option['x']<e['box']['right_bottom']['x']+.25 and
             e['box']['left_top']['y']-.25<option['y']<e['box']['right_bottom']['y']+.25
-            for e in entities if e.get('type') not in ('character','transport-belt','inserter','resource')):
+            for e in entities if e.get('type') not in ('character','transport-belt','resource')):
             continue
         if option not in result:result.append(option)
     if not result:raise ValueError('No unoccupied service stance in observed factory geometry')

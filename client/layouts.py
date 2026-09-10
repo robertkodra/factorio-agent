@@ -102,6 +102,64 @@ def pole_line(start, end, prefix='power-line', wire_distance=7.5):
                      'The endpoints must actually exist and observed machines must receive power.'])
 
 
+def smelting_row(recipe, count=8, origin=(0, 0), prefix='row'):
+    """A stone-furnace row with a mixed ore/coal belt and separate plate belt.
+
+    Upstream feeders must supply the two input lanes separately. This layout
+    does not assume that an arbitrary merge will keep both materials flowing.
+    """
+    from .belt_routes import belt_route
+    if recipe not in ('iron-plate', 'copper-plate') or type(count) is not int or not 2 <= count <= 48:
+        raise ValueError('Choose a metal recipe and 2-48 furnaces')
+    if len(origin) != 2 or any(type(v) is not int or abs(v)>990000 for v in origin):
+        raise ValueError('Furnace origin must contain bounded integer coordinates')
+    x, y = origin
+    last = x+3*(count-1)+.5
+    incoming = belt_route([(last,y-2.5),(x+.5,y-2.5)], 'west', prefix+'-input')
+    outgoing = belt_route([(last,y+2.5),(x+.5,y+2.5)], 'west', prefix+'-output')
+    sites = incoming['sites']+outgoing['sites']
+    for i in range(count):
+        cx = x+3*i
+        def add(label, entity, px, py, **extra):
+            sites.append(dict(id=f'{prefix}-{i}-{label}', entity=entity, build=True,
+                position=dict(x=px,y=py), stand=dict(x=cx,y=y-4), **extra))
+        add('pole','small-electric-pole',cx+1.5,y-.5)
+        add('input-arm','inserter',cx+.5,y-1.5,direction='north')
+        add('output-arm','inserter',cx+.5,y+1.5,direction='north')
+        add('furnace','stone-furnace',cx,y,recipe=recipe,external_inputs=True,eager=True)
+    return dict(sites=sites, materials=dict(Counter(s['entity'] for s in sites)),
+        ports={'mixed_input':{'x':last,'y':y-2.5},'plates_output':{'x':x+.5,'y':y+2.5}},
+        limitations=['Supply coal and the selected ore on separate incoming belt lanes.',
+                     'Connect and verify power, ore extraction and downstream plate transport.',
+                     'Preflight every footprint and observe actual smelting throughput.'])
+
+
+def smelting_block(recipe, per_side=12, origin=(0,0), prefix='block'):
+    """Two opposing rows load opposite lanes of one central output belt."""
+    if per_side not in (12,24):
+        raise ValueError('Choose the 12-by-2 or 24-by-2 furnace profile')
+    import copy
+    top=smelting_row(recipe,per_side,origin,prefix+'-top')
+    bottom=copy.deepcopy(smelting_row(recipe,per_side,origin,prefix+'-bottom'))
+    for site in bottom['sites']:
+        for key in ('position','stand'):
+            site[key]['y']=2*origin[1]+5-site[key]['y']
+        if site.get('direction')=='north':site['direction']='south'
+    sites=list(top['sites'])
+    occupied={(s['entity'],s['position']['x'],s['position']['y']) for s in sites}
+    for s in bottom['sites']:
+        key=(s['entity'],s['position']['x'],s['position']['y'])
+        if key not in occupied:
+            sites.append(s);occupied.add(key)
+    return dict(sites=sites,materials=dict(Counter(s['entity'] for s in sites)),
+        ports={'top_input':top['ports']['mixed_input'],
+               'bottom_input':dict(x=top['ports']['mixed_input']['x'],y=origin[1]+7.5),
+               'plates_output':top['ports']['plates_output']},
+        limitations=top['limitations']+[
+            'Each input row needs its own ore and coal lanes; the shared output needs both lanes clear.',
+            'Layout is a construction template, not a measured full-belt throughput claim.'])
+
+
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('recipe');parser.add_argument('--x',type=int,default=0)
