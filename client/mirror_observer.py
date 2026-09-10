@@ -8,7 +8,7 @@ import queue
 import threading
 import time
 
-from .agent import AgentRejected
+from .agent import AgentError, AgentRejected
 from .state_mirror import InvalidState, StateMirror
 
 
@@ -33,11 +33,20 @@ class BlockObserver:
     def _read(self, op, **kwargs):
         start = time.perf_counter()
         try:
-            return self.game.request(op, **kwargs)
-        except AgentRejected:
-            if not (op == 'status' and 'id' in kwargs):
+            result = self.game.request(op, **kwargs)
+            if not isinstance(result, dict):
+                raise AgentError('Observation result must be an object')
+            return result
+        except AgentRejected as exc:
+            if not (op == 'status' and 'id' in kwargs and str(exc) == 'unknown_job_id'):
                 self.mirror.invalidate('observation_rejected', disconnected=True)
                 self._record()
+            raise
+        except (AgentError, ValueError):
+            # Agent closes on bad framing/envelopes and JSON/UTF decoding errors.
+            # A fresh cached timestamp must not outlive that loss of trust.
+            self.mirror.invalidate('protocol_error', disconnected=True)
+            self._record()
             raise
         except (ConnectionError, TimeoutError, OSError):
             self.mirror.invalidate('disconnected', disconnected=True)
@@ -89,7 +98,7 @@ class BlockObserver:
             try:
                 result = self._read('status', id=job_id)
             except AgentRejected as exc:
-                if 'unknown_job_id' not in str(exc):
+                if str(exc) != 'unknown_job_id':
                     raise
                 # Absence is not authority to resubmit. Keep unknown and block.
                 continue

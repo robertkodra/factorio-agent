@@ -5,8 +5,9 @@ import queue
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
-from client.agent import AgentRejected, ROOT
+from client.agent import AgentError, AgentRejected, ROOT
 from client.mirror_log import MirrorLog, Reconstructor
 from client.mirror_observer import BlockObserver, EmergencyPump, domains_for
 from client.state_mirror import ENTITY_FIELDS, InvalidState, StateMirror
@@ -236,6 +237,55 @@ class MirrorTests(unittest.TestCase):
 
 
 class ObserverTests(unittest.TestCase):
+    def test_protocol_failures_invalidate_fresh_cache_and_record_recovery_boundary(self):
+        failures = [AgentError('Invalid RCON packet length'),
+                    AgentError('Unexpected RCON response type or ID'),
+                    AgentError('Invalid controller response envelope'),
+                    json.JSONDecodeError('bad JSON', '{', 1),
+                    UnicodeDecodeError('utf-8', b'\xff', 0, 1, 'invalid byte')]
+        for method in ('refresh', 'poll_events', 'reconcile_jobs'):
+            for failure in failures:
+                with self.subTest(method=method, failure=type(failure).__name__), temporary_runtime() as d:
+                    m=ready();g=FakeGame();token=m.plan_token(['inventory'],1.)
+                    if method=='reconcile_jobs':m.submitted('uncertain',60,1.)
+                    path=Path(d)/'failure.jsonl';log=MirrorLog(path)
+                    observer=BlockObserver(m,g,TARGETS,clock=lambda:1.,journal=log)
+                    log.append(m)
+                    try:
+                        with patch.object(g,'request',side_effect=failure):
+                            with self.assertRaises(type(failure)):
+                                getattr(observer,method)(*([IDENTITY] if method=='refresh' else []))
+                        self.assertFalse(m.state['connected'])
+                        self.assertFalse(m.state['event_valid'])
+                        self.assertEqual(m.state['reason'],'protocol_error')
+                        with self.assertRaises(InvalidState):m.require(['inventory'],1.)
+                        with self.assertRaises(InvalidState):m.validate_plan(token,1.)
+                        rebuilt=Reconstructor()
+                        log.close()
+                        for line in path.read_text().splitlines():rebuilt.apply(json.loads(line))
+                        self.assertEqual(rebuilt.state,m.checkpoint())
+                        # A successful poll alone cannot resurrect the cache.
+                        observer.journal=None;observer.poll_events()
+                        with self.assertRaises(InvalidState):m.require(['inventory'],1.)
+                        if method=='reconcile_jobs':
+                            self.assertEqual(m.unknown_jobs(),['uncertain'])
+                            g.jobs['uncertain']=dict(id='uncertain',status='complete',tick=60)
+                        observer.refresh(IDENTITY)
+                        m.require(['inventory'],1.)
+                    finally:log.close()
+
+    def test_invalid_result_and_unexpected_job_rejection_fail_closed(self):
+        for result in (None, [], 'invalid'):
+            m=ready();g=FakeGame();observer=BlockObserver(m,g,TARGETS,clock=lambda:1.)
+            with patch.object(g,'request',return_value=result):
+                with self.assertRaises(AgentError):observer.poll_events()
+            with self.assertRaises(InvalidState):m.require(['inventory'],1.)
+        m=ready();g=FakeGame();m.submitted('uncertain',60,1.)
+        with patch.object(g,'request',side_effect=AgentRejected('unexpected_unknown_job_id_error')):
+            with self.assertRaises(AgentRejected):BlockObserver(m,g,TARGETS).reconcile_jobs()
+        self.assertFalse(m.state['connected'])
+        self.assertEqual(m.unknown_jobs(),['uncertain'])
+
     def test_bounded_refresh_never_queries_full_factory_or_mutates(self):
         m=StateMirror(IDENTITY);g=FakeGame();o=BlockObserver(m,g,TARGETS,clock=lambda:1.)
         o.refresh(IDENTITY);m.require(['entity:10:inventory'],1.)

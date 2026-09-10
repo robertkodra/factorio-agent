@@ -112,6 +112,9 @@ world or reload with the same actor/version and a later tick cannot be detected
 from those observations alone. A trusted launcher must bind fresh provenance to
 an actual server instance before unattended live use. A hash supplied by a caller
 is not independent evidence that the running server loaded that hash.
+Reviewed launcher provenance and a reviewed measurement harness are hard
+prerequisites for live installation or gameplay. They do not block offline
+production-graph development.
 
 **Partial observations need explicit scope.** Missing requested IDs mean not
 observed at those positions; they do not invent an attack or destroyed count.
@@ -132,8 +135,10 @@ by 36,000 uninterrupted ticks at speed 1, ordinary enemies, and at least 95 perc
 of promised delivery to a designated sink. Count emergency effects in the result;
 exclude pause/reload, human gameplay input, manual inventory repairs, hidden
 handcraft contributions and mid-run source/configuration edits. Additionally,
-require the requested rate or an explicit infeasibility result, derive the promise
-from bottlenecks, and account for initial work in progress and external deliveries.
+require the requested rate or a structured infeasibility result giving maximum
+capacity and its bottleneck; never silently lower the promise. Verify both furnace
+production-counter deltas and sink-delivery deltas, recording starting and ending
+in-block plate stock as well as external deliveries.
 Otherwise an arbitrarily low promise or preloaded plates can pass without proving
 useful new production. No smelting construction is authorized by this report.
 
@@ -154,3 +159,19 @@ only the final implementation-matched reports should be used for this PR.
 
 Stop here for review. Live installation, smelting construction and broader planning
 remain later work.
+
+## Review corrections
+
+The protocol-failure regression now covers framing/envelope errors, invalid JSON
+and UTF decoding across refresh, event polling and receipt reconciliation. Each
+failure invalidates the mirror and is journaled before it propagates; a successful
+event poll alone cannot restore planning. Only an exact `unknown_job_id` rejection
+remains an unresolved receipt without declaring the connection lost.
+
+The baseline also now retains the 32 most recently updated damage records in both
+native-event and health-poll paths, rather than evicting a recently updated entity
+because of its original insertion order. The combined branch passes 175 project
+tests, 164 system-Python tests with 11 optional skips, and 31 isolated mirror tests
+in a fresh checkout. The replay implementation is unchanged; the measured strict
+88.83 percent reduction remains an accepted, disclosed miss. Measure live RCON
+cost before optimizing that storage result further.
