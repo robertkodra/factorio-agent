@@ -2,7 +2,12 @@
 
 A local, tick-driven controller for Factorio **2.0.77**, tested on macOS with Steam. The planner submits batches; the game executes ordinary walking, mining, crafting, item-funded construction, transfers, and research on its own ticks. The direct Python clients use only the standard library.
 
-Controller development source **0.8.0** uses a fixed `/codex-agent` JSON interface over persistent RCON. An optional [MCP stdio facade](MCP.md) exposes its 18 fixed operations with validated schemas (Python 3.10+ and separate dependencies). Base gameplay is enabled, with Space Age, Quality, and Elevated Rails disabled. The control-only mod changes no prototypes or recipes. The reflex has passed a limited live defensive encounter; broader survival remains under test.
+Controller development source **0.8.1** uses a fixed `/codex-agent` JSON interface over persistent RCON. An optional [MCP stdio facade](MCP.md) exposes its 19 fixed operations with validated schemas (Python 3.10+ and separate dependencies). Base gameplay is enabled, with Space Age, Quality, and Elevated Rails disabled. The control-only mod changes no prototypes or recipes. The reflex has passed a limited live defensive encounter; broader survival remains under test.
+
+The [smelting state-mirror slice](knowledge/state-mirror-001.md) adds a bounded
+owned-entity read, per-domain freshness, event/receipt reconciliation and measured
+private replay. Source 0.8.1 has not been installed or live-tested in this work.
+The 0.8 integration baseline and this slice have separate draft review boundaries.
 
 The [architecture review and next acceptance gates](knowledge/review-response-001.md)
 supersede the earlier implementation priorities. Oil Gathering completed in
@@ -80,7 +85,7 @@ After an uncertain transport failure, reconnect and inspect the same job ID. The
 
 ## Interface and limits
 
-Fixed operations: `prototype`, `hello`, `bind`, `release`, `observe`, `scan`, `survey`, `placement`, `inspect`, `factory`, `research_state`, `guard`, `submit`, `status`, `cancel`, `interrupt`, `pause`, `save`.
+Fixed operations: `observe_entities`, `prototype`, `hello`, `bind`, `release`, `observe`, `scan`, `survey`, `placement`, `inspect`, `factory`, `research_state`, `guard`, `submit`, `status`, `cancel`, `interrupt`, `pause`, `save`.
 
 Actions: `walk`, `mine`, `craft`, `await_craft`, `place`, `put`, `take`, `wait_inventory`, `research`, `set_recipe`, `rotate`, `wait_ticks`, `limit_chest`, `launch`.
 
