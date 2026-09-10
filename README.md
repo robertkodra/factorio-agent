@@ -2,14 +2,14 @@
 
 A local, tick-driven controller for Factorio **2.0.77**, tested on macOS with Steam. The planner submits batches; the game executes ordinary walking, mining, crafting, item-funded construction, transfers, and research on its own ticks. The direct Python clients use only the standard library.
 
-Controller source **0.4.0** uses a fixed `/codex-agent` JSON interface over persistent RCON. An optional [MCP stdio facade](MCP.md) exposes its 16 fixed operations with validated schemas (Python 3.10+ and separate dependencies). Base gameplay is enabled, with Space Age, Quality, and Elevated Rails disabled. The control-only mod changes no prototypes or recipes. The new reflex source is not installed or live-validated.
+Controller source **0.5.1** uses a fixed `/codex-agent` JSON interface over persistent RCON. An optional [MCP stdio facade](MCP.md) exposes its 16 fixed operations with validated schemas (Python 3.10+ and separate dependencies). Base gameplay is enabled, with Space Age, Quality, and Elevated Rails disabled. The control-only mod changes no prototypes or recipes. The reflex has passed a limited live defensive encounter; broader survival remains under test.
 
 The [local Qwen integration](knowledge/local-controller-001.md) is configured and
 tested through Ollama: 48/50 expected offline choices, 0.694-second median
 response. A persistent shadow supervisor and experimental tick-local defense
-source are implemented. This is not autonomous rocket readiness.
+source are implemented. A [persistent factory scheduler and rocket budget](knowledge/rocket-controller-001.md) now extend the production path. This is not autonomous rocket readiness.
 
-This is an experimental **tool-assisted vanilla-mechanics benchmark**. It has demonstrated conveyors, electricity, and red/green science production historically. A [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) now passes under the current no-console-Lua policy. A separate [enemy-enabled learning attempt](knowledge/learning-001.md) completed Automation and Gun turret and verified one loaded turret. Fresh automated red/green production, green-consuming research, robotics, and a rocket launch remain pending. No human speedrun eligibility or record is claimed.
+This is an experimental **tool-assisted vanilla-mechanics benchmark**. It has demonstrated conveyors, electricity, and red/green science production historically. A [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) now passes under the current no-console-Lua policy. A separate [enemy-enabled learning attempt](knowledge/learning-001.md) completed Automation and Gun turret and verified one loaded turret. A [checkpoint continuation](knowledge/rocket-controller-001.md) now completes Military 2 through supplied red/green labs. Repetition from a fresh map, robotics and a rocket launch remain pending. No human speedrun eligibility or record is claimed.
 
 ## Start here
 
@@ -73,16 +73,16 @@ After an uncertain transport failure, reconnect and inspect the same job ID. The
 
 Fixed operations: `hello`, `bind`, `release`, `observe`, `scan`, `survey`, `placement`, `inspect`, `factory`, `research_state`, `guard`, `submit`, `status`, `cancel`, `pause`, `save`.
 
-Actions: `walk`, `mine`, `craft`, `await_craft`, `place`, `put`, `take`, `wait_inventory`, `research`, `set_recipe`, `rotate`, `wait_ticks`.
+Actions: `walk`, `mine`, `craft`, `await_craft`, `place`, `put`, `take`, `wait_inventory`, `research`, `set_recipe`, `rotate`, `wait_ticks`, `launch`.
 
 - One active batch, with 1–512 actions. Structural validation occurs before enqueueing; gameplay preconditions are checked when a step executes. Failures stop the batch, preserving completed work.
 - Construction checks reach, collision, and real inventory costs. It creates entities through the mod API and does not reproduce every player-input statistic/event.
 - Transfers check reach, quantity, and destination capacity. Recipe changes require an empty idle machine.
 - Scans are limited to charted chunks and a maximum radius of 128. This is structured observation, not a screen-only interface.
 - Normal speed, cheat mode, and the allowed mod set are checked during binding, submission, and active execution. RCON is trusted local administration, not an adversarial sandbox.
-- Job state and bounded events persist in saves. There are limits of 256 stored jobs and 2,048 in-save events; status supports an event cursor. Raw event files remain in ignored runtime storage.
+- Job state and bounded events persist in saves. There are limits of 256 recent full jobs, 65,536 compact idempotency receipts and 2,048 in-save events; status supports an event cursor. Raw event files remain in ignored runtime storage.
 
-Navigation now detects lack of path progress and stops after bounded retries; it still needs automatic selection of reachable service positions. Local placement checks do not prove power/fluid/inserter connections. Inventory aliases need later-game coverage, and automated supply scheduling remains incomplete. Oil, robotics, and rocket actions need their own live validation. Start with the [strategy playbook](knowledge/strategy.md) and [next-run notes](knowledge/next-run.md) before longer attempts.
+Navigation detects lack of progress, tries alternative service positions and can use configured travel corridors. The [persistent scheduler](plans/AUTOPILOT.md) supplies configured cells and checks research/launch evidence. Local placement checks do not prove power/fluid/inserter connections. General factory layout, oil, robotics, and rocket execution still need live validation. Start with the [strategy playbook](knowledge/strategy.md) and [next-run notes](knowledge/next-run.md) before longer attempts.
 
 ## Local verification and planning
 

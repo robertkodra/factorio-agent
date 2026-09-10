@@ -1,5 +1,13 @@
 # Changes
 
+## Persistent factory controller 0.5.1 — 2026-09-10
+
+- Added a persistent deterministic supply/research scheduler with private source/plan manifests, durable intentions, reconciliation, trip completion, configured travel corridors and bounded recovery.
+- Added full base-game rocket research/material expansion, joint oil/cracking conservation, optional production-window capacity sizing and relative item-cell plans.
+- Native stack transfers preserve partial ammunition. Normal silo launch is separate from actual launch-event evidence. Factory observations include fluids, power networks, machine status, output and research completion records.
+- Replaced the 256-job hard stop with recent full jobs and durable compact receipts; old IDs retain outcomes and reject conflicting payloads.
+- Live checkpoint practice completed Military 2 through supplied labs, with no new deaths or gameplay pause transitions. The final controller phase completed 592 jobs without an execution failure. All 81 unit tests pass. See [the practice report](knowledge/rocket-controller-001.md) for timings, retained failures, restarts and remaining rocket limitations.
+
 ## Live defense validation and controller 0.4.1 — 2026-09-09
 
 - Controller 0.4.0 survived fourteen small biters with native firing and retreat:

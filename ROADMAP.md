@@ -8,7 +8,7 @@ The next milestone is a clean, reproducible early-game run under `POLICY.md`, fo
 |---|---|---|---|
 | G0 | Establish a clean baseline | Fresh map; initial state and version/seed/mod hashes; no console Lua | Recorded for responsiveness and the separate learning attempt; the latter records controller upgrades and recovery |
 | G1 | Stable early factory | Powered red/green production, supplied labs, enough fuel/input buffers | Partial: current-policy checkpoint continuation has automatic red delivery and Electric mining drill; green and continuous input supply remain pending |
-| G2 | First green-consuming research | `military-2` completed by labs after Military, Steel processing, and green-science prerequisites | Pending; producing green packs alone does not pass |
+| G2 | First green-consuming research | `military-2` completed by labs after Military, Steel processing, and green-science prerequisites | Demonstrated in checkpoint practice with native completion; fresh-map repetition pending |
 | G3 | Military science and research | Military-science recipe unlocked; packs produced; a technology requiring military packs completed through labs | Pending |
 | G4 | Oil and blue science | Oil processing chain supplies blue packs; blue-consuming research completed | Pending |
 | G5 | Working robotics | Robotics/construction robotics completed; powered robot infrastructure; a construction robot builds an item-funded ghost | Pending |
@@ -32,7 +32,7 @@ Start with one local MCP server around the existing controller. Multiple indepen
 | Session | Status, cancellation, explicit pause/resume, checkpoint, recovery | Fixed commands exist; portable orchestration and broader recovery tests pending |
 | Performance | Timing, throughput, starvation/fuel/power diagnostics | Existing logs; sustained throughput and bottleneck metrics pending |
 
-The optional [MCP stdio facade](MCP.md) wraps the fixed RCON client using the official Python SDK. It exposes 15 schema-validated tools and persistent RCON transport, including local placement and charted water/pollution observations, with no generic Lua, shell, or raw-console tool. Submission returns immediately; status/cancel operate while a tick job is active. Uncertain mutations must be reconciled by job ID instead of replayed. SDK/stdio/socket tests, historical-save compatibility and a [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) pass. Fresh automated red/green production remains pending. The archived upstream FactorioMCP exposed unrestricted Lua and remains unsuitable for new-policy runs.
+The optional [MCP stdio facade](MCP.md) wraps the fixed RCON client using the official Python SDK. It exposes 16 schema-validated tools and persistent RCON transport, including local placement and charted water/pollution observations, with no generic Lua, shell, or raw-console tool. Submission returns immediately; status/cancel operate while a tick job is active. Uncertain mutations must be reconciled by job ID instead of replayed. SDK/stdio/socket tests, historical-save compatibility and a [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) pass. Fresh automated red/green production remains pending. The archived upstream FactorioMCP exposed unrestricted Lua and remains unsuitable for new-policy runs.
 
 ## Next implementation order
 
@@ -56,13 +56,25 @@ map, enemy, pause, and reload rules; no speed target is established yet.
 | Navigation and construction | Bounded progress watchdog; local placement preflight | Automatic reachable service positions, broader obstacle cases, power and fluid connection planning |
 | Economy and planning | Research dependencies, ordered crafting budgets and hand-authored batches | Automatic fuel/input reserves, concurrent production, bottleneck detection, recovery from starvation |
 | Version-specific knowledge | Static catalog plus live enabled-recipe names; sourced strategy playbook | Fixed live recipe/technology metadata and fluid/by-product planning |
-| Progress tracking and recovery | Saved job state and notebook helpers | Fresh-run manifests, checkpoint hashes, research-consumption events, resumable milestone planner |
+| Progress tracking and recovery | Persistent scheduler, source/plan manifests, compact job receipts and native research/launch evidence | Fresh-map completion, later science consumption and final launch checkpoint |
 | Oil and later science | Unproven | Sustained oil/chemical production and actual lab consumption at each required tier |
 | Robots and construction | Ghost/robot controls not implemented | Item-funded ghost placement and observed normal robot construction |
-| Silo and launch | Silo inventory/launch operations not implemented | Narrow reviewed actions, real material consumption, actual rocket launch event, final checkpoint |
+| Silo and launch | Normal launch action, silo inventory/parts and native launch evidence implemented and unit-tested | Live silo construction, real part consumption, actual launch event and checkpoint |
 | Enemy-enabled play | Charted enemy/pollution observations; one turret loaded live | Live defensive encounters, normal equipment/combat/repair controls, automated ammunition supply |
 
 For each fixed benchmark configuration, report completed attempts/total attempts,
 ticks to each verified milestone and launch, total wall time including planning,
 pauses/reloads, failed batches, and human interventions. Record losses as well as
 successes. Optimize repeatable completion before comparing speed across attempts.
+
+
+## Production-controller implementation update
+
+See [rocket-controller-001](knowledge/rocket-controller-001.md). Source 0.5.1 and
+the Python scheduler add normal machine construction/supply, trip completion,
+configured corridors, access-position alternatives, resumable private journals,
+native research/launch evidence and full rocket material/oil budgeting. Relative
+item cells and production-window capacity sizing are available. This replaces
+the earlier claims that launch actions and all supply scheduling were missing.
+Automatic map-wide layout, resource expansion, connected fluid construction,
+repeated enemy survival and a live rocket remain unfinished.
