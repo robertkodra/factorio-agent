@@ -1,17 +1,16 @@
 import hashlib
 import json
 from pathlib import Path
-import tempfile
 import unittest
 
 from client.agent import ROOT
 from client.replay_mirror import replay
-from tests.test_state_mirror import IDENTITY, entities, event, player
+from tests.test_state_mirror import IDENTITY, entities, event, player, temporary_runtime
 
 
 class ReplayMirrorTests(unittest.TestCase):
     def test_same_retained_observations_reconstruct_without_changing_source(self):
-        with tempfile.TemporaryDirectory(dir=ROOT/'runtime') as d:
+        with temporary_runtime() as d:
             d=Path(d);source=d/'original.jsonl'
             factory=entities();factory.update(researched=['automation'],research=None,progress=0)
             changed=entities(62);changed['entities'][0]['health']=180
@@ -36,7 +35,7 @@ class ReplayMirrorTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):replay(source,d/'replayed',IDENTITY,[10])
 
     def test_failed_replay_leaves_original_and_failure_evidence(self):
-        with tempfile.TemporaryDirectory(dir=ROOT/'runtime') as d:
+        with temporary_runtime() as d:
             d=Path(d);source=d/'bad.jsonl';source.write_text('invalid json\n')
             with self.assertRaises(json.JSONDecodeError):replay(source,d/'failed',IDENTITY,[10])
             self.assertEqual(source.read_text(),'invalid json\n')

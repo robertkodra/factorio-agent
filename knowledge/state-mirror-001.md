@@ -148,7 +148,8 @@ The first full suite after adding the MCP operation failed because its round-tri
 fixture had no valid example for the new required target list. The fixture was
 updated; no gameplay ran. Review of the pinned 2.0.77 API also corrected the fuel
 mock: `currently_burning.name` is an item prototype, whose `.name` supplies the
-string. Earlier replay passes and their metrics remain as development evidence;
+string. A final clean-checkout check also removed test-order dependence on a pre-existing
+ignored runtime directory. Earlier replay passes and their metrics remain as development evidence;
 only the final implementation-matched reports should be used for this PR.
 
 Stop here for review. Live installation, smelting construction and broader planning

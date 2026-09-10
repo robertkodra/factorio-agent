@@ -16,6 +16,11 @@ IDENTITY = dict(episode='fixture', save_sha256='a'*64, mod_sha256='b'*64,
 TARGETS = [dict(id=10,x=2,y=3)]
 
 
+def temporary_runtime():
+    (ROOT/'runtime').mkdir(exist_ok=True)
+    return tempfile.TemporaryDirectory(dir=ROOT/'runtime')
+
+
 def player(tick=60):
     return dict(tick=tick,actor_unit=7,surface=1,version='0.8.1',mods={'base':'2.0.77'},
                 position=dict(x=0,y=0),inventory=[dict(name='iron-plate',count=5)],
@@ -203,7 +208,7 @@ class MirrorTests(unittest.TestCase):
 
     def test_reconstruct_checkpoint_plus_deltas_and_resume_events(self):
         m=ready();reader=Reconstructor()
-        with tempfile.TemporaryDirectory(dir=ROOT/'runtime') as d:
+        with temporary_runtime() as d:
             log=MirrorLog(Path(d)/'mirror.jsonl',checkpoint_seconds=.02)
             records=[log.append(m)]
             m.status(status(1,61,[event()]),1.01);records.append(log.append(m))
@@ -221,7 +226,7 @@ class MirrorTests(unittest.TestCase):
 
     def test_logs_refuse_public_paths_and_overwrite(self):
         with self.assertRaises(ValueError):MirrorLog(ROOT/'should-not-exist.jsonl')
-        with tempfile.TemporaryDirectory(dir=ROOT/'runtime') as d:
+        with temporary_runtime() as d:
             p=Path(d)/'mirror.jsonl';log=MirrorLog(p);log.close()
             with self.assertRaises(FileExistsError):MirrorLog(p)
 
@@ -238,7 +243,7 @@ class ObserverTests(unittest.TestCase):
         self.assertEqual(next(k for op,k in g.calls if op=='observe_entities')['targets'],TARGETS)
 
     def test_observer_writes_reconstructable_checkpoint_and_event_delta(self):
-        with tempfile.TemporaryDirectory(dir=ROOT/'runtime') as d:
+        with temporary_runtime() as d:
             m=StateMirror(IDENTITY);g=FakeGame();p=Path(d)/'observer.jsonl';log=MirrorLog(p)
             observer=BlockObserver(m,g,TARGETS,clock=lambda:1.,journal=log)
             observer.refresh(IDENTITY);g.page=status(1,61,[event()]);observer.poll_events();log.close()
