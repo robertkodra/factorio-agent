@@ -32,6 +32,11 @@ gitleaks git --redact --log-opts=--all .
 
 The publication guard checks staged content and all reachable history, including removed files and commit messages. It rejects known private artifact types, personal home/temp paths, private-key headers, common token formats, embedded URL credentials, and non-no-reply email addresses. CI runs the guard, unit tests, and a pinned Gitleaks release whose archive checksum is verified before execution. Pattern checks cannot prove the absence of every possible secret or personal detail.
 
+In addition to GitHub user no-reply addresses, the exact public service address
+`noreply@github.com` is permitted for GitHub-generated merge commits. Other
+addresses at that domain remain rejected. This exception preserves normal merge
+history without misclassifying the service committer as a personal address.
+
 For the initial release, Gitleaks 8.30.1 was obtained from the official release with its archive SHA-256 verified. A separate local audit checks the known credentials and private identifiers without embedding their values here. Publication verification results are recorded in `publication-checks.json`.
 
 If something sensitive is accidentally published, revoke or rotate live credentials first, preserve an appropriate private incident record, and follow GitHub's removal process. Simply deleting the visible file is insufficient.

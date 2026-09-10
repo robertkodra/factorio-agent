@@ -23,7 +23,8 @@ def git(*args):
 
 def content_issues(data):
     issues = {name for name, pattern in CONTENT_RULES.items() if pattern.search(data)}
-    if any(match.group(1).lower() != b'users.noreply.github.com' for match in EMAIL.finditer(data)):
+    if any(match.group(1).lower() != b'users.noreply.github.com'
+           and match.group(0).lower() != b'noreply@github.com' for match in EMAIL.finditer(data)):
         issues.add('non-noreply-email')
     return issues
 
