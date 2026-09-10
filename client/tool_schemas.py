@@ -1,4 +1,4 @@
-"""Bounded MCP tool contracts for controller 0.8.0, with no generic operation tool.
+"""Bounded MCP tool contracts for controller 0.8.1, with no generic operation tool.
 
 These schemas restrict shape and bounds. The mod remains authoritative for
 unlocks, item costs, reach, collision, ownership, and all gameplay preconditions.
@@ -60,6 +60,10 @@ ACTIONS = [
 # Every entry is a fixed operation; caller-supplied op/code/console fields fail
 # validation. Keep all defaults in the mod so repeated job fingerprints match.
 TOOLS = {
+    "observe_entities": (obj(dict(targets=dict(type="array",minItems=1,maxItems=64,
+        items=obj(dict(id=integer(1,4294967295),**POSITION),("id","x","y")))),("targets",)),
+        "Read up to 64 already observed owned entities by ID and position on charted terrain. "
+        "Returns scoped machine state and missing IDs, not a discovery scan. Requires controller 0.8.1."),
     "prototype": (obj(dict(entity=NAME), ("entity",)), "Read static entity geometry, fluid ports and supported mining/pole dimensions. Contains no world state."),
     "hello": (obj(), "Read controller version and supported operations; does not bind an engineer."),
     "bind": (obj(dict(player=integer(1, 65535))),
@@ -111,4 +115,4 @@ TOOLS = {
              "Request a private server checkpoint by simple name. May overwrite the same name. "
              "Acknowledgement proves a save request, not completed file creation or a milestone."),
 }
-READ_ONLY = frozenset({"prototype", "hello", "observe", "scan", "survey", "placement", "inspect", "factory", "research_state", "status"})
+READ_ONLY = frozenset({"observe_entities","prototype", "hello", "observe", "scan", "survey", "placement", "inspect", "factory", "research_state", "status"})

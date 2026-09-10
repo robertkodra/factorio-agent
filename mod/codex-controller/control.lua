@@ -1,4 +1,4 @@
-local VERSION = '0.8.0'
+local VERSION = '0.8.1'
 local navigation = require('navigation')
 local combat_observation = require('combat_observation')
 local reflex = require('reflex')
@@ -353,16 +353,9 @@ local function job_status(j)
 end
 local function snapshot()
   local s=state();local c=actor();local owner=game.get_player(s.owner)
-  return {version=VERSION,tick=game.tick,speed=game.speed,paused=game.tick_paused,mods=script.active_mods,position=c.position,health=c.health,max_health=c.max_health,inventory=c.get_main_inventory().get_contents(),ammo=c.get_inventory(defines.inventory.character_ammo).get_contents(),crafting=c.crafting_queue or {},walking=c.walking_state,mining=c.mining_state.mining,actor_unit=c.unit_number,actor_has_player=c.player~=nil,viewer_controller=owner and owner.controller_type,job=job_status(s.current and s.jobs[s.current]),sequence=s.sequence,pauses=s.pauses,policy='no-console-lua-v1',guard=s.guard,guns=defines.inventory.character_guns and reflex.equipment(c) or nil}
+  return {version=VERSION,tick=game.tick,speed=game.speed,paused=game.tick_paused,mods=script.active_mods,position=c.position,health=c.health,max_health=c.max_health,inventory=c.get_main_inventory().get_contents(),ammo=c.get_inventory(defines.inventory.character_ammo).get_contents(),crafting=c.crafting_queue or {},walking=c.walking_state,mining=c.mining_state.mining,actor_unit=c.unit_number,surface=c.surface and c.surface.index,actor_has_player=c.player~=nil,viewer_controller=owner and owner.controller_type,job=job_status(s.current and s.jobs[s.current]),sequence=s.sequence,pauses=s.pauses,policy='no-console-lua-v1',guard=s.guard,guns=defines.inventory.character_guns and reflex.equipment(c) or nil}
 end
-local function factory_snapshot()
-local c=actor();local f=c.force;local s=c.surface;
-local o={tick=game.tick,speed=game.speed,paused=game.tick_paused,entities={},researched={},
-launches=state().launches or {},research_events=state().research_events or {},
-research=f.current_research and f.current_research.name,progress=f.research_progress,produced={}};
-for n,t in pairs(f.technologies)do if t.researched then table.insert(o.researched,n)end end;
-table.sort(o.researched);
-for _,e in pairs(s.find_entities_filtered{force=f})do
+local function entity_snapshot(e,f,s)
  local v={id=e.unit_number,name=e.name,type=e.type,position=e.position,direction=e.direction,status=e.status,
  health=e.health,max_health=e.max_health,energy=e.energy,box=e.bounding_box};
  if defines.entity_status then for name,value in pairs(defines.entity_status)do if value==e.status then v.status_name=name;break end end end;
@@ -401,7 +394,18 @@ for _,e in pairs(s.find_entities_filtered{force=f})do
    if n and n.valid and n.force==f then v.neighbour_id=n.unit_number end;
   end;
  end;
- table.insert(o.entities,v);
+ return v
+end
+
+local function factory_snapshot()
+local c=actor();local f=c.force;local s=c.surface;
+local o={tick=game.tick,speed=game.speed,paused=game.tick_paused,entities={},researched={},
+launches=state().launches or {},research_events=state().research_events or {},
+research=f.current_research and f.current_research.name,progress=f.research_progress,produced={}};
+for n,t in pairs(f.technologies)do if t.researched then table.insert(o.researched,n)end end;
+table.sort(o.researched);
+for _,e in pairs(s.find_entities_filtered{force=f})do
+ table.insert(o.entities,entity_snapshot(e,f,s));
 end;
 local stats=f.get_item_production_statistics(s);
 for _,n in pairs({'lab','firearm-magazine','iron-plate','copper-plate','automation-science-pack','logistic-science-pack',
@@ -410,7 +414,8 @@ for _,n in pairs({'lab','firearm-magazine','iron-plate','copper-plate','automati
 return o
 end
 local function research_snapshot()
-local c=actor();local f=c.force;local out={tick=game.tick,researched={},produced={},enabled_recipes={}};
+local c=actor();local f=c.force;local out={tick=game.tick,sequence=state().sequence,researched={},produced={},enabled_recipes={},
+ research=f.current_research and f.current_research.name,progress=f.research_progress};
 for n,t in pairs(f.technologies)do if t.researched then out.researched[#out.researched+1]=n end end;
 table.sort(out.researched);
 for n,r in pairs(f.recipes)do if r.enabled then out.enabled_recipes[#out.enabled_recipes+1]=n end end;
@@ -422,7 +427,10 @@ end
 local function handle(req)
   if type(req)~='table' then error('request_must_be_object') end
   local s=state();local op=req.op
-  if op=='hello' then return {version=VERSION,commands={'prototype','bind','release','submit','status','observe','scan','survey','placement','inspect','factory','research_state','guard','cancel','interrupt','pause','save'},actions=TYPES} end
+  if op=='hello' then return {version=VERSION,observation_contract='smelting-block-v1',commands={'observe_entities','prototype','bind','release','submit','status','observe','scan','survey','placement','inspect','factory','research_state','guard','cancel','interrupt','pause','save'},actions=TYPES} end
+  if op=='observe_entities' then
+    return require('block_observation').read(req,actor(),game.tick,s.sequence,VERSION,entity_snapshot)
+  end
   if op=='prototype' then
     for k,_ in pairs(req) do if k~='op' and k~='entity' then error('unknown_prototype_field') end end
     if not named(req.entity) then error('invalid_entity_name') end
