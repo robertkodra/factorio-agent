@@ -12,6 +12,14 @@ Read [POLICY.md](POLICY.md), [ROADMAP.md](ROADMAP.md), and [knowledge/README.md]
 
 ## Current development — controller 0.7.0
 
+Read [supply recovery and automatic science transport](knowledge/supply-recovery-001.md)
+for the latest stopping point. The wider coal repair and science-conveyor sequence
+is checkpointed. Eight iron furnaces and four steam engines were working in the
+final observation. Green packs reached all four labs automatically; red ingredients
+remain stalled and Engine research is at 23 percent. The sole executor retains
+defense watch after its construction target. Inspect its current handle and journal
+before resuming production. The game is unpaused; the exact ledger remains open.
+
 Read [the remote factory-attack failure and response](knowledge/factory-defense-001.md)
 first. The coal conveyor was attacked while attention was on construction. Its
 lost tiles were replaced and the loaded turret relocated. Two additional turrets
@@ -36,7 +44,7 @@ underground crossing and continuous iron return were verified live. The 0.6.0
 ledger closed with its failures preserved; a new checkpoint continuation is
 open. Check live server identity and active journals before continuing. The single
 scheduler currently watches defense and replenishes ammunition after completing
-the coal-feed correction; science supply needs resuming in its next production plan.
+the wider supply recovery; science ingredient supply needs resuming in its next plan.
 Next are connected copper/construction supplies and fewer ingredient trips.
 Do not assume the older stopped states below still apply.
 

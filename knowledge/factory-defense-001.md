@@ -16,6 +16,14 @@ adapter recorded only engineer damage. A separate factory snapshot watcher
 retained the evidence but had no dispatch authority. Consequently an intact
 engineer and a quiet local scan did not mean the factory was safe.
 
+The initial damage inspection was incomplete. A later comparison with the same
+attack snapshot found five additional missing boiler-coal conveyor tiles and
+the coal drill's power connection. The separate smelting-row coal drill and five
+of its conveyor tiles were also absent. Therefore the initial thirteen-tile
+repair did not establish complete supply recovery. These additional absences
+predate the new watch; they are not evidence of a new post-fix attack. Exact
+before/after inventories and the wider missing-entity comparison remain private.
+
 All thirteen belt tiles were replaced using actual inventory. The existing
 loaded turret was normally relocated to cover the attacked conveyor and given
 its seventeen recovered magazines. A preparatory attempt to craft more turrets
@@ -70,3 +78,7 @@ that preserves the guard. Measure event-to-cancel, event-to-dispatch, arrival,
 losses, ammunition and remaining power during natural attacks. Preserve all
 failures and human interventions. Add normal grenade use and test movement,
 grouping and escape routes before relying on grenade kiting.
+
+Recovery must also verify the entire damaged production path: resource drill,
+power, conveyor continuity, receiving fuel inventories and actual downstream
+output. A loaded turret and repaired visible belt segment are insufficient.

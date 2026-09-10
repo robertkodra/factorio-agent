@@ -1,5 +1,9 @@
 # Factorio knowledge base
 
+Latest sequence: [supply recovery and automatic science transport](supply-recovery-001.md).
+Coal and iron production recovered; science transport works, but ingredient
+starvation still prevents sustained research.
+
 Latest failure and correction: [remote factory attack and continuous defense watch](factory-defense-001.md).
 Engineer-local combat missed damage to the coal supply. Keep this limitation and
 the actual losses visible when judging the newer controller.
