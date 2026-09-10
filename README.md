@@ -27,6 +27,7 @@ This is an experimental **tool-assisted vanilla-mechanics benchmark**. It has de
 
 ## Start here
 
+- [MIT license](LICENSE) and [contribution and branch rules](CONTRIBUTING.md)
 - [Setup and continuation](HANDOFF.md)
 - [Connect an agent through MCP](MCP.md)
 - [Gameplay strategy](knowledge/strategy.md) and [learning results](knowledge/learning-001.md)
@@ -37,6 +38,10 @@ This is an experimental **tool-assisted vanilla-mechanics benchmark**. It has de
 - [Publication and contribution privacy](PUBLICATION.md)
 
 The public repository contains reviewed source, tests, plans, static recipe data, and summarized findings. Historical saves, raw observations, runtime configuration, credentials, and original Git history are kept separately in a private archive. Clone this repository afresh; do not push old experiment branches into it.
+
+Original project code and documentation are available under the [MIT License](LICENSE).
+Factorio and its assets belong to Wube Software and are not licensed or distributed
+by this repository. Third-party dependencies retain their own licenses.
 
 ## Historical measurements
 

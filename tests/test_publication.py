@@ -5,12 +5,20 @@ import subprocess
 import tempfile
 import unittest
 
-from scripts.check_publication import content_issues
+from scripts.check_publication import content_issues, file_issues
 
 GUARD = Path(__file__).resolve().parents[1] / 'scripts/check_publication.py'
 
 
 class PublicationTests(unittest.TestCase):
+    def test_root_license_is_text_checked_without_allowing_other_unreviewed_files(self):
+        self.assertEqual(file_issues('LICENSE','100644',b'MIT License\n'),set())
+        self.assertIn('unreviewed-file-type',file_issues('unknown','100644',b'text'))
+        self.assertIn('unreviewed-file-type',file_issues('other/LICENSE','100644',b'text'))
+        self.assertIn('binary-content',file_issues('LICENSE','100644',b'\x00'))
+        self.assertIn('non-regular-file',file_issues('LICENSE','120000',b'target'))
+        self.assertIn('private-key',file_issues('LICENSE','100644',b'-----BEGIN '+b'PRIVATE KEY-----'))
+
     def test_github_service_and_user_noreply_addresses_pass(self):
         metadata=b'author Fixture <fixture@users.noreply.github.com>\ncommitter GitHub <noreply@github.com>\n'
         self.assertEqual(content_issues(metadata),set())

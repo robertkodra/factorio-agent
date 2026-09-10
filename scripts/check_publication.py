@@ -39,7 +39,7 @@ def file_issues(name, mode, data):
         issues.add('private-artifact')
     if mode not in ('100644', '100755'):
         issues.add('non-regular-file')
-    if path.suffix not in TEXT_SUFFIXES and name != '.gitignore':
+    if path.suffix not in TEXT_SUFFIXES and name not in {'.gitignore', 'LICENSE'}:
         issues.add('unreviewed-file-type')
     try:
         data.decode('utf-8')
