@@ -47,6 +47,13 @@ and is logged; arbitrary assaults on nests are not generated. `target: defense`
 keeps an idle watch process alive, and `watch_after_target` can retain watch after
 a production milestone instead of exiting between planning phases.
 
+A further correction keeps this watch alive when placement preflight rejects a
+footprint. Production suspension persists across a same-journal restart; a new,
+corrected plan is needed to continue building. Unit coverage verifies that no
+construction batch is submitted, the blocked placement is not retried on resume,
+and subsequent factory damage still dispatches defense. This does not cover every
+fatal process error or establish measured attack response in the live game.
+
 Unit tests cover remote damage, repair discrimination, loaded-station selection,
 quiet holding, exact-job preemption, guard restoration and cancellation accounting.
 The watch is running in the live game. Its response to another real attack has

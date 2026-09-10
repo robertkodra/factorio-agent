@@ -147,6 +147,14 @@ the normal milestone. Process deadlines still apply. See the
 [failure and limits](../knowledge/factory-defense-001.md); polling is not a native
 destruction-event feed. Keep exactly one executor during any plan handoff.
 
+With `defense_stations` configured, a blocked placement suspends production
+instead of stopping the scheduler. The journal records the rejected action;
+no part of its preflighted batch is submitted. Damage monitoring, defense dispatch
+and fuel/ammunition maintenance continue. Resuming that same journal retains the
+suspension. Prepare a corrected plan and a new journal, preserving the previous
+record, before resuming construction. This handles a definite blocked footprint;
+transport uncertainty and other fatal errors still stop the process.
+
 Fuel and ammunition maintenance retain priority over construction. Optional
 production-buffer refills follow construction selection, so a hungry distant
 buffer cannot preempt every build; when a needed construction component is

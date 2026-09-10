@@ -710,10 +710,12 @@ class Runner:
             self.journal.emit('factory_defense_waiting',choice)
             return False
         if not choice:
-            if done:
+            if done or self.journal.state.get('production_suspended'):
                 self.planner.refresh(o,f,r)
                 choice=self.planner.maintenance()
-                self.planner.reason='Target verified; factory defense watch remains active'
+                self.planner.reason=('Construction suspended; factory defense watch remains active'
+                    if self.journal.state.get('production_suspended') else
+                    'Target verified; factory defense watch remains active')
             else:
                 choice = self.planner.choose(o, f, r)
         self.journal.state['service_intent'] = self.planner.service_intent
@@ -754,7 +756,19 @@ class Runner:
                         if recovery and self.planner.blocked_until.get(recovery['key'],0)<=o['tick']:
                             choice=recovery
                             break
-                    raise RuntimeError('Configured footprint is blocked: '+choice['key'])
+                    reason='Configured footprint is blocked: '+choice['key']
+                    if not self.planner.plan.get('defense_stations'):
+                        raise RuntimeError(reason)
+                    # A rejected footprint has not submitted any part of this
+                    # batch. Keep monitoring and defensive maintenance alive
+                    # while a corrected plan is prepared, including on resume.
+                    self.planner.service_intent=None
+                    self.journal.state.update(service_intent=None,production_suspended=
+                        dict(reason=reason,tick=o['tick'],action=dict(action)))
+                    self.journal.save()
+                    self.journal.emit('production_suspended',self.journal.state['production_suspended'])
+                    print(reason+'; defense watch remains active',flush=True)
+                    return False
         self.journal.state['serial'] += 1
         job = dict(choice, id='auto-' + self.journal.state.get('run_id',self.journal.directory.name)
                    + '-' + str(self.journal.state['serial']))

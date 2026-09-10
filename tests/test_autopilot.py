@@ -49,6 +49,35 @@ class FakeGame:
 
 
 class AutopilotTests(unittest.TestCase):
+    def test_blocked_construction_keeps_defense_alive_across_resume(self):
+        g=FakeGame();j=MemoryJournal();g.f['tick']=100
+        station=dict(id='station',entity='gun-turret',position=dict(x=100,y=0),stand=dict(x=98,y=0))
+        build=dict(id='pole',entity='small-electric-pole',position=dict(x=1,y=0),stand=dict(x=0,y=0),build=True)
+        g.o['inventory']=[dict(name='small-electric-pole',count=1)]
+        turret=dict(id=1,name='gun-turret',type='ammo-turret',position=station['position'],health=400,
+                    ammo=[dict(name='firearm-magazine',count=20)])
+        g.f['entities']=[turret]
+        original=g.request
+        def request(op,**kw):
+            if op=='placement':
+                g.calls.append((op,kw));return dict(can_place=False)
+            return original(op,**kw)
+        g.request=request
+        plan=dict(target='infrastructure',sites=[build,station],defense_stations=['station'])
+        r=Runner(g,Planner(plan),j)
+        self.assertFalse(r.poll())
+        self.assertEqual(j.state['production_suspended']['action']['entity'],'small-electric-pole')
+        self.assertIsNone(j.state['pending'])
+        self.assertFalse(any(op=='submit' for op,_ in g.calls))
+        # Resuming the same plan must not retry the rejected footprint.
+        r=Runner(g,Planner(plan),j)
+        self.assertFalse(r.poll())
+        self.assertEqual(sum(op=='placement' for op,_ in g.calls),1)
+        g.o['tick']=200;g.f['tick']=200;turret['health']=390;r.defense_poll_wall=0
+        self.assertFalse(r.poll())
+        self.assertTrue(j.state['pending']['key'].startswith('factory-defense:'))
+        self.assertTrue(g.o['guard']['enabled'])
+
     def test_completed_target_keeps_factory_watch_alive(self):
         g=FakeGame();j=MemoryJournal();g.f['researched'].append('military-2');g.f['tick']=100
         s=dict(id='station',entity='gun-turret',position=dict(x=3,y=0),stand=dict(x=1,y=0))
