@@ -1,5 +1,12 @@
 # Setup and continuation
 
+Current separate review unit: [trusted launcher](knowledge/trusted-launcher-001.md).
+PR 7 is merged as the observed-topology foundation. The material-flow draft is
+separate. The leftover server was checkpointed and gracefully stopped; gameplay
+remains stopped and source 0.8.1 remains uninstalled. This launcher library is not
+wired into startup. Its review and a separate measurement-harness review remain
+hard prerequisites for live work.
+
 Clone the public repository into a new directory. Its history is independent of the private experiments; do not merge or push those old branches here.
 
 ```sh

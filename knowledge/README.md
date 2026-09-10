@@ -1,5 +1,9 @@
 # Factorio knowledge base
 
+Separate offline review: [trusted-launcher lifecycle](trusted-launcher-001.md).
+The module does not install the controller or resume gameplay. Its OS smoke test
+uses a Python fixture, and its richer game handshake remains untested live.
+
 Latest offline implementation: [observed production graph](production-graph-001.md).
 The 0.8 baseline and [state-mirror slice](state-mirror-001.md) merged in order after
 review corrections. Graph analysis remains offline. The 0.8.1 mod stays uninstalled
