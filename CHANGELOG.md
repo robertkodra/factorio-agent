@@ -1,4 +1,15 @@
-# Smelting state mirror 0.8.1 — offline review
+# Offline production-graph foundation
+
+- Reviewed and merged the baseline and mirror in order after fixing bounded
+  damage recency and fail-closed protocol handling.
+- Added bounded graph projection and structural upstream tracing from observed
+  drill/inserter ports and building footprints. Unknown lanes and stale facts
+  remain explicit; no flow capacity or throughput guarantee is inferred.
+- Retained a private graph from archived observations. No mod change, game
+  connection, installation or gameplay is part of this slice.
+- See [scope and acceptance contract](knowledge/production-graph-001.md).
+
+# Smelting state mirror 0.8.1 — original offline review
 
 - Added bounded owned/charted entity reads, furnace recipe/burning-fuel state and
   actor/surface/event fences without new gameplay actions.

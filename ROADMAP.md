@@ -1,8 +1,10 @@
 # Progression and MCP roadmap
 
-The [state-mirror slice](knowledge/state-mirror-001.md) is now ready for offline review;
-its new observation contract is source-only. Do not advance to live construction
-until reviewed.
+The baseline and [state-mirror slice](knowledge/state-mirror-001.md) are merged.
+The [first offline production graph](knowledge/production-graph-001.md) derives
+candidate transfers and reports unresolved ports and lanes. The observation
+contract remains source-only. Reviewed launcher provenance and a reviewed
+measurement harness are required before installation or gameplay.
 
 The objective is repeatable normal-mechanics rocket completion. Military 2 and
 Oil Gathering have completed in checkpoint practice; connected oil production,

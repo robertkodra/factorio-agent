@@ -7,7 +7,10 @@ Controller development source **0.8.1** uses a fixed `/codex-agent` JSON interfa
 The [smelting state-mirror slice](knowledge/state-mirror-001.md) adds a bounded
 owned-entity read, per-domain freshness, event/receipt reconciliation and measured
 private replay. Source 0.8.1 has not been installed or live-tested in this work.
-The 0.8 integration baseline and this slice have separate draft review boundaries.
+The 0.8 integration baseline and this slice were reviewed and merged separately
+in PRs 5 and 6. The [first offline production graph](knowledge/production-graph-001.md)
+now derives candidate transfers from observed ports and footprints. Live
+installation and gameplay require reviewed launcher provenance and measurement.
 
 The [architecture review and next acceptance gates](knowledge/review-response-001.md)
 supersede the earlier implementation priorities. Oil Gathering completed in

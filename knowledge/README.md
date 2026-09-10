@@ -1,9 +1,10 @@
 # Factorio knowledge base
 
-Latest offline implementation: [smelting state mirror](state-mirror-001.md).
-The 0.8 baseline and source-only 0.8.1 observation/cache slice have separate review
-boundaries. Replay is measured; no gameplay was resumed. Await review before live
-installation or smelting construction.
+Latest offline implementation: [observed production graph](production-graph-001.md).
+The 0.8 baseline and [state-mirror slice](state-mirror-001.md) merged in order after
+review corrections. Graph analysis remains offline. The 0.8.1 mod stays uninstalled
+and gameplay stopped until launcher provenance and the measurement harness are
+reviewed.
 
 
 Current direction and state: [architecture review response](review-response-001.md).
