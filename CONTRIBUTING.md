@@ -39,3 +39,10 @@ by the publication and secret scans described in [PUBLICATION.md](PUBLICATION.md
 Keep saves, raw observations, replay reports and runtime configuration under
 ignored `runtime/`. Include aggregate evidence and limitations in a pull request;
 do not publish private archives or personal machine paths.
+
+Install the reviewed privacy hooks as described in [PUBLICATION.md](PUBLICATION.md).
+They scan before commits and pushes, including values removed in later commits.
+Public PR descriptions and comments need the same privacy review as source files;
+scan drafts locally before posting. CI reports only redacted summaries and does
+not upload detailed scanner reports. Actual environment values and local paths
+belong in private discussion or ignored local storage.

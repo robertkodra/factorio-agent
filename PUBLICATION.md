@@ -26,11 +26,42 @@ Use a new branch and review the staged diff and filenames. Keep private artifact
 ```sh
 git diff --cached --stat
 python3 -m unittest discover -s tests -v
-python3 scripts/check_publication.py --history
-gitleaks git --redact --log-opts=--all .
+python3 scripts/privacy_gate.py ci
 ```
 
-The publication guard checks staged content and all reachable history, including removed files and commit messages. It rejects known private artifact types, personal home/temp paths, private-key headers, common token formats, embedded URL credentials, and non-no-reply email addresses. CI runs the guard, unit tests, and a pinned Gitleaks release whose archive checksum is verified before execution. Pattern checks cannot prove the absence of every possible secret or personal detail.
+The publication guard checks staged content and all reachable history, including removed files, filenames, ref names, commit messages and annotated tags. It rejects known private artifact types, personal home/temp paths (including common URL/JSON escapes and Windows forms), private-key headers, common token formats, embedded URL credentials, and non-no-reply email addresses. The gate also applies Gitleaks default rules to the exact staged snapshot, history and commit/tag metadata. Repository ignore lists and inline scanner suppression comments do not exempt findings. Scanner failures block publication.
+
+CI uses a pinned Gitleaks release whose archive checksum is verified before execution. Privacy scans run before dependencies and unit tests. Detailed findings, including sensitive filenames and scanner diagnostics, stay in ignored `runtime/` with restrictive local permissions; public output gives categories and counts only. Never upload these reports as CI artifacts. Tests or commands can still print private data, so do not supply private runtime values to public CI jobs.
+
+## Local prevention
+
+CI runs after a push, so it cannot prevent the initial disclosure. Install Gitleaks from its official release, verify the archive checksum, and make the executable available as `.tools/gitleaks` or on `PATH`. Then install the reviewed hooks:
+
+```sh
+python3 scripts/install_privacy_hooks.py
+```
+
+The installer uses Git-local storage and configuration. Copies of the reviewed gate survive branch switches and scan before commits and pushes. It refuses to replace existing custom hooks. Reinstall after reviewed gate updates, and install separately in every clone. A missing scanner, malformed configuration, unsafe report directory or scan error blocks the operation. A pre-push scan includes outgoing object IDs even if they are not reachable through a named local branch.
+
+For private values that generic patterns cannot recognize, keep a JSON list of local identifiers and credential values in ignored `runtime/privacy-private-markers.json`, restrict access to the file, and bind it during installation:
+
+```sh
+python3 scripts/install_privacy_hooks.py --private-markers runtime/privacy-private-markers.json
+```
+
+No actual values belong in this document. A configured marker file must remain available; a missing or malformed file blocks the scan. The file is local and is never sent to GitHub. Portable environment variable names and repository-relative path examples are allowed; actual environment values, machine paths and private player identifiers stay in private chat or local ignored storage.
+
+## Public text and other surfaces
+
+PR descriptions, issue comments, release notes, screenshots and pasted command output can disclose information even when Git is clean. Prepare text in ignored local storage and scan it before posting:
+
+```sh
+python3 scripts/privacy_gate.py text --text-file runtime/draft.md
+```
+
+Review images separately before publication; the source guard rejects unreviewed binary files. Do not paste environment dumps or detailed audit output into public threads. Use only aggregate audit results. The initial expanded audit is recorded in [privacy-audit-001.md](knowledge/privacy-audit-001.md).
+
+GitHub secret scanning and push protection are enabled. They cover supported patterns, not arbitrary personal paths or every private identifier. GitHub's non-provider-pattern setting remained disabled on API readback, so it is not counted as an active control; local and CI Gitleaks checks supply generic credential detection. The owner's explicit branch-ruleset bypass remains enabled as requested. Local hooks and platform checks are bypassable, and pattern checks cannot prove the absence of every possible secret or personal detail. Review remains required.
 
 In addition to GitHub user no-reply addresses, the exact public service address
 `noreply@github.com` is permitted for GitHub-generated merge commits. Other
