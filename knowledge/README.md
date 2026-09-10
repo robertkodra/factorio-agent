@@ -1,5 +1,9 @@
 # Factorio knowledge base
 
+Latest progress: [restoring useful science flow](science-flow-001.md).
+Engine and Fluid handling completed; Oil gathering is running after correcting
+circuit input starvation and separating the science belt lanes.
+
 Latest sequence: [supply recovery and automatic science transport](supply-recovery-001.md).
 Coal and iron production recovered; science transport works, but ingredient
 starvation still prevents sustained research.
