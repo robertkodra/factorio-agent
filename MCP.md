@@ -51,7 +51,7 @@ console, or Lua arguments.
 | `observe`, `scan`, `inspect` | Read engineer state and charted/reachable surroundings |
 | `survey`, `placement` | Read nearby charted water/pollution and local normal-placement preflight (controller 0.3.0+) |
 | `factory`, `research_state` | Inspect production and completed research |
-| `guard` | Enable experimental normal-input bullet defense; off by default, source 0.4.0, not live-validated |
+| `guard` | Enable experimental normal-input bullet defense; off by default; limited live defense validated |
 | `submit` | Enqueue one bounded batch and return immediately |
 | `status`, `cancel` | Track or stop the active job without waiting for its planned duration |
 | `pause`, `save` | Record an explicit pause/resume or request a private checkpoint |
@@ -67,9 +67,9 @@ Start with `hello`, then `bind` and `observe`. Submit a job with a stable ID:
 
 Call `status` with `{"id":"opening-wait-001"}` to observe completion. Passing
 the ID to `cancel` guards against accidentally cancelling a different job.
-The 12 action schemas cover walking, mining, crafting, waiting for crafting,
+The 13 action schemas cover walking, mining, crafting, waiting for crafting,
 placement, transfers, inventory waits, research selection, machine recipe
-selection, rotation, and tick waits. The mod applies default values and checks
+selection, rotation, tick waits, and normal rocket launch. The mod applies default values and checks
 all actual gameplay conditions. Unknown fields, invalid bounds, nonfinite
 numbers, invalid action types, and oversized batches are rejected before RCON.
 Optional fields should be omitted rather than set to `null`.
@@ -106,7 +106,7 @@ position or choose an ordinary mining action to clear an obstruction.
 
 Source 0.4.0 adds `guard` with `enabled` and an optional nearby charted `rally`
 position. It interrupts remaining production on danger, uses equipped weapons
-and normal movement/firing, and needs live validation. Both `cancel` and the
+and normal movement/firing. A limited [live encounter](knowledge/live-defense-001.md) passed; broader survival remains unproven. Both `cancel` and the
 Stop job button disable it. Completed actions and queued crafts remain. See
 the [implementation report](knowledge/local-controller-001.md) for exact limits.
 `observe` exposes equipment and guard state; `status.events_lost` flags an
@@ -128,7 +128,7 @@ not merely previously charted terrain.
   reused. Use the `cancel` tool to stop remaining game actions. Already queued
   hand crafting continues normally, including after release or disconnection.
 - For event paging, use the last returned event's `seq` as `after`, not the
-  global `sequence`. The controller retains only 2,048 events and 256 jobs;
+  global `sequence`. The controller retains 2,048 events, 256 recent full jobs and up to 65,536 compact job receipts;
   clients must record evidence privately and account for missing old events.
 - A successful `save` call acknowledges a request. Verify the checkpoint file
   and its hash separately. It does not prove a milestone or fresh-map provenance.
@@ -167,3 +167,12 @@ disposable, auto-paused copy. It verifies the base/controller mod allowlist and
 unchanged tick, inventory, position, and source checkpoint hash. All raw output
 stays under ignored `runtime/`. This is a historical compatibility test, not a
 clean gameplay run, navigation test, or demonstrated rocket capability.
+
+
+Controller 0.5.1 uses native stack transfers, including partially spent
+ammunition. Semantic `input` and `output` inventories cover assemblers, furnaces,
+labs and silos. `factory` includes fluid boxes, power-network IDs, machine status,
+research completion records and actual rocket-launch events. Submit
+`{"type":"launch","entity":"rocket-silo","x":0,"y":0}` only for a real, ready,
+owned silo at its actual reachable coordinates. The example coordinates are
+placeholders. Successful submission/order is not launch completion.

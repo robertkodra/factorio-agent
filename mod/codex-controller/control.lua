@@ -1,11 +1,13 @@
-local VERSION = '0.4.1'
+local VERSION = '0.5.1'
 local navigation = require('navigation')
 local combat_observation = require('combat_observation')
 local reflex = require('reflex')
+local transfer = require('transfer')
+local job_history = require('job_history')
 local resumed = false
 local DIR = {north=0,northeast=2,east=4,southeast=6,south=8,southwest=10,west=12,northwest=14}
 local INV = {fuel=defines.inventory.fuel,source=defines.inventory.furnace_source,result=defines.inventory.furnace_result,chest=defines.inventory.chest,input=defines.inventory.assembling_machine_input,output=defines.inventory.assembling_machine_output,ammo=defines.inventory.turret_ammo}
-local TYPES = {walk=true,mine=true,craft=true,await_craft=true,place=true,put=true,take=true,wait_inventory=true,research=true,set_recipe=true,rotate=true,wait_ticks=true}
+local TYPES = {walk=true,mine=true,craft=true,await_craft=true,place=true,put=true,take=true,wait_inventory=true,research=true,set_recipe=true,rotate=true,wait_ticks=true,launch=true}
 local FIELDS = {type=true,x=true,y=true,count=true,item=true,recipe=true,entity=true,direction=true,inventory=true,player_inventory=true,tolerance=true,timeout=true,ticks=true,technology=true}
 local function state()
   storage.agent = storage.agent or {version=VERSION,jobs={},order={},events={},sequence=0,follow=true,pauses=0}
@@ -65,7 +67,22 @@ local function close_to(c,e)
 end
 local function inventory(e,name)
   if name=='ammo' and e.type~='ammo-turret' then error('ammo_requires_ammo_turret') end
-  local inv=e.get_inventory(INV[name or 'chest'])
+  local idx=INV[name or 'chest']
+  if name=='fuel' then
+    local fuel=e.get_fuel_inventory()
+    if not fuel then error('entity_has_no_fuel_inventory') end
+    return fuel
+  elseif name=='input' then
+    if e.type=='lab' then idx=defines.inventory.lab_input
+    elseif e.type=='furnace' then idx=defines.inventory.furnace_source
+    elseif e.type=='rocket-silo' then idx=defines.inventory.rocket_silo_input
+    elseif e.type~='assembling-machine' then error('entity_has_no_input_inventory') end
+  elseif name=='output' then
+    local output=e.get_output_inventory()
+    if not output then error('entity_has_no_output_inventory') end
+    return output
+  end
+  local inv=e.get_inventory(idx)
   if not inv then error('invalid_inventory_for_entity') end
   return inv
 end
@@ -79,7 +96,7 @@ local function validate(actions)
     local b={};for k,v in pairs(a) do b[k]=v end
     if b.timeout~=nil and not integer(b.timeout,1,216000) then error('invalid_timeout') end
     b.timeout=b.timeout or 3600
-    if a.type=='walk' or a.type=='mine' or a.type=='place' or a.type=='put' or a.type=='take' or a.type=='set_recipe' or a.type=='rotate' or (a.type=='wait_inventory' and (a.x~=nil or a.y~=nil)) then
+    if a.type=='walk' or a.type=='mine' or a.type=='place' or a.type=='put' or a.type=='take' or a.type=='set_recipe' or a.type=='rotate' or a.type=='launch' or (a.type=='wait_inventory' and (a.x~=nil or a.y~=nil)) then
       if not coordinate(a.x) or not coordinate(a.y) then error('invalid_coordinates') end
     end
     if a.type=='walk' then
@@ -105,6 +122,7 @@ local function validate(actions)
       b.direction=b.direction or 'north'
     end
     if a.type=='research' and not named(a.technology) then error('invalid_technology') end
+    if a.type=='launch' and a.entity~='rocket-silo' then error('launch_requires_silo_name') end
     if a.type=='wait_ticks' and not integer(a.ticks,1,216000) then error('invalid_ticks') end
     out[i]=b
   end
@@ -169,26 +187,13 @@ local function start_step(c,j,a)
     local e=entity_at(c,a);close_to(c,e)
     local own=a.player_inventory=='ammo' and c.get_inventory(defines.inventory.character_ammo) or c.get_main_inventory();local other=inventory(e,a.inventory)
     local src=a.type=='put' and own or other;local dst=a.type=='put' and other or own
-    -- Name/count transfers cannot represent a partly spent magazine. Refuse
-    -- before mutating either inventory rather than recreate missing rounds.
-    -- Use the native inventory UI for these stacks until typed stack transfer
-    -- is implemented and tested against the game.
-    local magazine_size=prototypes.item[a.item].magazine_size
-    if magazine_size then
-      for _,inv in ipairs({src,dst}) do
-        for i=1,#inv do
-          local stack=inv[i]
-          if stack.valid_for_read and stack.name==a.item and stack.ammo~=magazine_size then
-            error('partial_ammo_requires_native_inventory')
-          end
-        end
-      end
-    end
-    if src.get_item_count(a.item)<a.count then error('insufficient_items') end
-    if dst.get_insertable_count(a.item)<a.count then error('insufficient_space') end
-    local n=src.remove{name=a.item,count=a.count};local added=dst.insert{name=a.item,count=n}
-    if added<n then src.insert{name=a.item,count=n-added};error('transfer_incomplete') end
+    local added=transfer.move(src,dst,a.item,a.count)
     next_step(j,{entity=e.name,item=a.item,count=added});return
+  elseif a.type=='launch' then
+    local e=entity_at(c,a);close_to(c,e)
+    if e.type~='rocket-silo' or e.force~=c.force then error('launch_requires_owned_silo') end
+    if not e.launch_rocket() then error('rocket_not_ready') end
+    next_step(j,{launch_ordered=true,silo=e.unit_number});return
   elseif a.type=='research' then
     if not c.force.add_research(a.technology) then error('research_unavailable') end
     next_step(j);return
@@ -332,7 +337,7 @@ local function tick()
 end
 local function job_status(j)
   if not j then return {status='idle'} end
-  return {id=j.id,status=j.status,index=j.index,total=#j.actions,action=j.actions[j.index] and j.actions[j.index].type,started_tick=j.started_tick,finished_tick=j.finished_tick,error=j.error,metrics=j.metrics}
+  return {id=j.id,status=j.status,index=j.index,total=j.total or #j.actions,action=j.archived and j.action or (j.actions and j.actions[j.index] and j.actions[j.index].type),started_tick=j.started_tick,finished_tick=j.finished_tick,error=j.error,metrics=j.metrics}
 end
 local function snapshot()
   local s=state();local c=actor();local owner=game.get_player(s.owner)
@@ -341,30 +346,40 @@ end
 local function factory_snapshot()
 local c=actor();local f=c.force;local s=c.surface;
 local o={tick=game.tick,speed=game.speed,paused=game.tick_paused,entities={},researched={},
+launches=state().launches or {},research_events=state().research_events or {},
 research=f.current_research and f.current_research.name,progress=f.research_progress,produced={}};
 for n,t in pairs(f.technologies)do if t.researched then table.insert(o.researched,n)end end;
 table.sort(o.researched);
 for _,e in pairs(s.find_entities_filtered{force=f})do
- local v={name=e.name,type=e.type,position=e.position,direction=e.direction,status=e.status,
+ local v={id=e.unit_number,name=e.name,type=e.type,position=e.position,direction=e.direction,status=e.status,
  health=e.health,max_health=e.max_health,energy=e.energy,box=e.bounding_box};
+ if defines.entity_status then for name,value in pairs(defines.entity_status)do if value==e.status then v.status_name=name;break end end end;
+ v.electric_network_id=e.electric_network_id;
+ v.fluids={};for i=1,#e.fluidbox do local fluid=e.fluidbox[i];if fluid then v.fluids[#v.fluids+1]={index=i,name=fluid.name,amount=fluid.amount,temperature=fluid.temperature}end end;
  local fuel=e.get_fuel_inventory();if fuel then v.fuel=fuel.get_contents()end;
- if e.type=='ammo-turret' then v.ammo=e.get_inventory(defines.inventory.turret_ammo).get_contents()end;
+ if e.type=='ammo-turret' then
+  local ammo=e.get_inventory(defines.inventory.turret_ammo);v.ammo=ammo.get_contents();v.ammo_stacks={};
+  for i=1,#ammo do local a=ammo[i];if a.valid_for_read then v.ammo_stacks[#v.ammo_stacks+1]={slot=i,name=a.name,count=a.count,rounds=a.ammo}end end;
+ end;
  local input=nil;
- if e.type=='assembling-machine' then
+ if e.type=='container' or e.type=='logistic-container' then v.chest=e.get_inventory(defines.inventory.chest).get_contents()end;
+ if e.type=='assembling-machine' or e.type=='rocket-silo' then
   local recipe=e.get_recipe();v.recipe=recipe and recipe.name;
-  input=e.get_inventory(defines.inventory.assembling_machine_input);
+  input=e.get_inventory(e.type=='rocket-silo' and defines.inventory.rocket_silo_input or defines.inventory.assembling_machine_input);
  elseif e.type=='furnace' then input=e.get_inventory(defines.inventory.furnace_source);
  elseif e.type=='lab' then input=e.get_inventory(defines.inventory.lab_input);end;
  if input then v.input=input.get_contents()end;
- if e.type=='assembling-machine' or e.type=='furnace' then
+ if e.type=='assembling-machine' or e.type=='furnace' or e.type=='rocket-silo' then
+  v.products_finished=e.products_finished;
   local output=e.get_output_inventory();if output then v.output=output.get_contents()end;
  end;
+ if e.type=='rocket-silo' then v.rocket_parts=e.rocket_parts;v.rocket_parts_required=e.prototype.rocket_parts_required;v.rocket_silo_status=e.rocket_silo_status end;
  if e.type=='inserter' then v.pickup=e.pickup_position;v.drop=e.drop_position;end;
  table.insert(o.entities,v);
 end;
 local stats=f.get_item_production_statistics(s);
 for _,n in pairs({'lab','firearm-magazine','iron-plate','copper-plate','automation-science-pack','logistic-science-pack',
-'military-science-pack','chemical-science-pack','construction-robot','logistic-robot'})do
+'military-science-pack','chemical-science-pack','production-science-pack','utility-science-pack','rocket-part','rocket-silo','construction-robot','logistic-robot'})do
  o.produced[n]=stats.get_input_count(n);end;
 return o
 end
@@ -416,8 +431,8 @@ local function handle(req)
     s.guard={enabled=req.enabled,active=false,urgent=true,rally=req.rally,mode='watching'}
     event('guard_configured',{enabled=req.enabled,rally=req.rally});return s.guard
   elseif op=='status' then
-    if req.id and not s.jobs[req.id] then error('unknown_job_id') end
-    local j=req.id and s.jobs[req.id] or (s.current and s.jobs[s.current]);local out=job_status(j);out.tick=game.tick;out.sequence=s.sequence;out.events={};out.last_damage=s.last_damage;out.last_death=s.last_death
+    if req.id and not job_history.find(s,req.id) then error('unknown_job_id') end
+    local j=req.id and job_history.find(s,req.id) or (s.current and s.jobs[s.current]);local out=job_status(j);out.tick=game.tick;out.sequence=s.sequence;out.events={};out.last_damage=s.last_damage;out.last_death=s.last_death
     local after=req.after or s.sequence
     if not integer(after,0,s.sequence) then error('invalid_cursor') end
     out.oldest_sequence=s.events[1] and s.events[1].seq or s.sequence+1
@@ -430,13 +445,14 @@ local function handle(req)
     check_rules(game.get_player(s.owner))
     if not named(req.id) then error('valid_id_required') end
     local actions=validate(req.actions);local signature=fingerprint(actions)
-    if s.jobs[req.id] then
-      if fingerprint(s.jobs[req.id].actions)~=signature then error('id_conflict') end
-      return job_status(s.jobs[req.id])
+    local previous=job_history.find(s,req.id)
+    if previous then
+      if (previous.fingerprint or fingerprint(previous.actions))~=signature then error('id_conflict') end
+      return job_status(previous)
     end
     if s.guard and s.guard.active then error('defense_active_revalidate_after_clear') end
     if s.current and s.jobs[s.current].status=='running' then error('busy') end
-    if #s.order>=256 then error('job_history_full_save_and_start_new_session') end
+    job_history.make_room(s)
     local j={id=req.id,actions=actions,fingerprint=signature,index=1,status='running',started_tick=game.tick,metrics={ticks=0,max_step=0}}
     s.jobs[req.id]=j;s.order[#s.order+1]=req.id;s.current=req.id
     event('submitted',{id=req.id,actions=actions});return job_status(j)
@@ -546,6 +562,24 @@ script.on_event(defines.events.on_player_crafted_item,function(e)
     event('player_crafted',{recipe=e.recipe.name,item=e.item_stack.name,count=e.item_stack.count})
   end
 end)
+if defines.events.on_research_finished then script.on_event(defines.events.on_research_finished,function(e)
+  local s=state();local owner=s.owner and game.get_player(s.owner)
+  if owner and e.research.force==owner.force then
+    local record={technology=e.research.name,tick=game.tick,by_script=e.by_script}
+    s.research_events=s.research_events or {};s.research_events[e.research.name]=record
+    event('research_finished',record)
+  end
+end) end
+if defines.events.on_rocket_launched then script.on_event(defines.events.on_rocket_launched,function(e)
+  local s=state();local owner=s.owner and game.get_player(s.owner)
+  if owner and e.rocket.valid and e.rocket.force==owner.force then
+    local record={tick=game.tick,rocket=e.rocket.unit_number,
+      silo=e.rocket_silo and e.rocket_silo.unit_number}
+    s.launches=s.launches or {};s.launches[#s.launches+1]=record
+    if #s.launches>64 then table.remove(s.launches,1) end
+    event('rocket_launched',record)
+  end
+end) end
 script.on_event(defines.events.on_script_path_request_finished,function(e)
   local s=state();local j=s.current and s.jobs[s.current];local r=j and j.runtime
   if r and r.path_id==e.id then r.path=e.path;r.ready=true;r.busy=e.try_again_later end

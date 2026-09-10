@@ -1,5 +1,11 @@
 # Factorio knowledge base
 
+Latest implementation: [persistent factory controller and rocket planning](rocket-controller-001.md).
+Controller 0.5.1 adds native stack transfers, durable job receipts, research/launch
+evidence and a persistent production scheduler. Read that report for current
+live validation and the remaining rocket work.
+
+
 Latest validation: [first live defensive encounter](live-defense-001.md).
 Controller 0.4.0 survived fourteen small biters with local Qwen running in shadow
 mode. The practice checkpoint is saved and the game stopped; the subsequent

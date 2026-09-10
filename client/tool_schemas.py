@@ -1,4 +1,4 @@
-"""Bounded MCP tool contracts for controller 0.4.0, with no generic operation tool.
+"""Bounded MCP tool contracts for controller 0.5.0, with no generic operation tool.
 
 These schemas restrict shape and bounds. The mod remains authoritative for
 unlocks, item costs, reach, collision, ownership, and all gameplay preconditions.
@@ -52,6 +52,7 @@ ACTIONS = [
     action("set_recipe", dict(**ENTITY, recipe=NAME), ("x", "y", "recipe")),
     action("rotate", ENTITY, ("x", "y")),
     action("wait_ticks", dict(ticks=TICKS), ("ticks",)),
+    action("launch", ENTITY, ("x", "y", "entity")),
 ]
 
 # Every entry is a fixed operation; caller-supplied op/code/console fields fail
@@ -75,7 +76,8 @@ TOOLS = {
                   "Checks current stance and collisions; does not place or reserve an item. "
                   "Run while unpaused: paused checks return false even at valid sites. "
                   "Does not prove power, fluid or inserter connectivity. Recheck at execution."),
-    "factory": (obj(), "Read the player's factory, machine inventories, production, and research."),
+    "factory": (obj(), "Read the player's factory, inventories, fluids, power-network IDs, machine output, "
+                "research completion records, and actual rocket-launch events. Launch-order success is not completion."),
     "research_state": (obj(), "Read completed technologies, enabled recipe names, and supported production counters."),
     "guard": (obj(dict(enabled=dict(type="boolean"), rally=obj(POSITION, ("x", "y"))), ("enabled",)),
               "Enable or disable experimental tick-local bullet defense using equipped weapons and normal ammunition. "

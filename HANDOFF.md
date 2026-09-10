@@ -121,3 +121,31 @@ closed and the server/client stopped. Source 0.4.1 is now installed; its new
 partial-ammunition transfer rejection is unit-tested but not live-tested. Use
 native inventory controls for partial magazines. Start a new ledger when
 continuing. Shadow advice remains disconnected from production actions.
+
+
+## Current production-controller development
+
+Controller 0.5.1 supersedes the older setup notes above. Read the
+[factory-controller report](knowledge/rocket-controller-001.md) and
+[private plan format](plans/AUTOPILOT.md). It replaces the partial-magazine
+rejection with native stack transfers and retains compact receipts beyond the
+old 256-job ceiling. The scheduler and rocket material/capacity planner are
+implemented; later science, fluid layout and an actual launch remain unverified.
+
+The current user requires no cheating and no gameplay pauses. Do not use the
+historical paused initialization recipe above for this user's new attempts.
+Create a private manifest from the actual unpaused starting observation; record
+startup waits and any development restarts separately. Keep one production
+executor, retain every prior journal, and reconcile pending IDs before resuming.
+A Python deadline leaves the game running. End a practice session by saving and
+gracefully stopping its server, preserving the checkpoint identity and failures.
+
+
+The latest practice completed Military 2 through the labs with full final health
+and no new deaths or gameplay pause transitions. It includes development
+restarts and corrected private layouts, so it is not a fresh timed baseline.
+The checkpoint is verified and both server and viewer are stopped. The closed
+private run retains all four scheduler journals and the final validation record.
+Continue in a new ledger from that checkpoint, or create a fresh map for a scored
+baseline. Next implementation priorities are automatic intermediate production,
+shorter material routes and the connected oil/blue-science chain.

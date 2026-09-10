@@ -1,0 +1,570 @@
+"""Persistent, deterministic factory scheduler over fixed normal-mechanics actions.
+
+Run against an explicitly configured, already-running practice world. Site
+coordinates and access stances are private inputs, never inferred from hidden
+terrain. Qwen is not in this control path. Uncertain submissions stop the runner
+and retain the job ID for reconciliation; they are never replayed automatically.
+"""
+from __future__ import annotations
+
+import argparse
+from collections import Counter
+import fcntl
+import hashlib
+import json
+import math
+from pathlib import Path
+import secrets
+import time
+
+from .agent import Agent, ROOT
+from .materials import CATALOG, craft_budget
+from .progression import research_plan
+from .routes import corridor, service_stances
+from .supervisor import EventCursor
+
+
+def contents(entries):
+    result = Counter()
+    for item in entries or []:
+        if item.get('quality', 'normal') == 'normal':
+            result[item['name']] += item['count']
+    return result
+
+
+def load_plan(path):
+    plan = json.loads(Path(path).read_text())
+    if plan.get('version') != 1 or not isinstance(plan.get('sites'), list):
+        raise ValueError('Expected version 1 plan with sites')
+    ids = set()
+    for s in plan['sites']:
+        if not isinstance(s.get('id'), str) or s['id'] in ids or not isinstance(s.get('entity'), str):
+            raise ValueError('Site IDs must be unique and entities named')
+        ids.add(s['id'])
+        for key in ('position', 'stand'):
+            if not isinstance(s.get(key), dict) or any(isinstance(s[key].get(k), bool) or
+                    not isinstance(s[key].get(k), (int, float)) or
+                    not math.isfinite(s[key][k]) or abs(s[key][k]) > 1_000_000 for k in ('x', 'y')):
+                raise ValueError('Sites require bounded position and access stance')
+        if math.dist(tuple(s['position'][k] for k in ('x','y')),
+                     tuple(s['stand'][k] for k in ('x','y'))) > 9:
+            raise ValueError('Access stance must be local to site')
+    for source in plan.get('sources', []):
+        if source.get('site') not in ids or source.get('inventory') not in ('fuel','output','chest'):
+            raise ValueError('Source must refer to a site inventory')
+        if type(source.get('reserve', 0)) is not int or source.get('reserve', 0) < 0:
+            raise ValueError('Source reserve must be a nonnegative integer')
+    for site in plan['sites']:
+        for key in ('input_site', 'output_site'):
+            if key in site and site[key] not in ids:
+                raise ValueError('Cell buffers must refer to configured sites')
+    if plan.get('target') != 'rocket':
+        research_plan([plan['target']])
+    return plan
+
+
+class Planner:
+    """Choose one bounded skill from current state, never a replayed old batch."""
+    def __init__(self, plan):
+        self.plan = plan
+        self.sites = {s['id']: s for s in plan['sites']}
+        self.catalog = json.loads(CATALOG.read_text())
+        self.recipes = self.catalog['recipes']
+        self.reason = ''
+        self.blocked_until = {}
+        self.stance_attempts = Counter()
+        self.service_intent = None
+
+    def refresh(self, observation, factory, research):
+        self.o, self.f = observation, factory
+        self.stock = contents(observation['inventory'])
+        self.enabled = set(research['enabled_recipes'])
+        self.entities = {}
+        for sid, site in self.sites.items():
+            p = site['position']
+            self.entities[sid] = next((e for e in factory['entities']
+                if e['name'] == site['entity'] and
+                abs(e['position']['x'] - p['x']) < .2 and
+                abs(e['position']['y'] - p['y']) < .2), None)
+
+    def skill(self, key, actions, detail):
+        if self.blocked_until.get(key, 0) > self.o['tick']:
+            return None
+        return dict(key=key, actions=actions, detail=detail)
+
+    def at(self, sid, action, detail):
+        site = self.sites[sid]
+        # Travel and transfer are separate jobs: re-observe amounts after travel.
+        options = service_stances(site, self.f['entities'])
+        p, stand = self.o['position'], options[self.stance_attempts[sid] % len(options)]
+        key = detail + ':' + sid
+        if math.hypot(p['x'] - stand['x'], p['y'] - stand['y']) > .6:
+            self.service_intent = dict(sid=sid, action=action, detail=detail)
+            return self.skill('approach:' + sid,
+                [dict(type='walk', **point, timeout=3600)
+                 for point in corridor(p, stand, self.plan.get('corridors'))], 'Reach configured service stance')
+        self.service_intent = None
+        return self.skill(key, [dict(action, entity=site['entity'], **site['position'])], detail)
+
+    def finish_service(self):
+        """Finish the purpose of a trip, with current quantities and world state."""
+        intent, self.service_intent = self.service_intent, None
+        if not intent:
+            return None
+        sid, action, detail = intent['sid'], dict(intent['action']), intent['detail']
+        entity = self.entities[sid]
+        if action['type'] == 'place':
+            if entity or not self.stock[self.sites[sid]['entity']]:
+                return None
+        elif not entity:
+            return None
+        elif action['type'] in ('put', 'take'):
+            item = action['item']
+            if action['type'] == 'put':
+                available = self.stock[item]
+                if action.get('player_inventory') == 'ammo':
+                    available = max(0, sum(s.get('magazines',0) for s in
+                        self.o.get('guns',{}).get('slots',[]) if s.get('ammo')==item)
+                        - self.plan.get('engineer_ammo_reserve',10))
+            else:
+                reserve = max((s.get('reserve',0) for s in self.plan.get('sources',[])
+                    if s['site']==sid and s['item']==item and s['inventory']==action['inventory']),default=0)
+                available = max(0, contents(entity.get(action['inventory']))[item]-reserve)
+            action['count'] = min(action['count'], available)
+            if not action['count']:
+                return None
+        elif action['type']=='set_recipe' and entity.get('recipe')==action['recipe']:
+            return None
+        return self.at(sid, action, detail)
+
+    def sources(self, item):
+        candidates = list(self.plan.get('sources', []))
+        for sid, site in self.sites.items():
+            recipe = self.recipes.get(site.get('recipe', ''))
+            if recipe and any(p['name'] == item for p in recipe['products']):
+                candidates.append(dict(site=site.get('output_site',sid),
+                    inventory='chest' if site.get('output_site') else 'output', item=item))
+        candidates = [s for s in candidates if s['item'] == item and self.entities[s['site']]]
+        return sorted(candidates, key=lambda s: math.hypot(
+            self.sites[s['site']]['stand']['x'] - self.o['position']['x'],
+            self.sites[s['site']]['stand']['y'] - self.o['position']['y']))
+
+    def ensure(self, item, amount, trail=()):
+        missing = max(0, math.ceil(amount - self.stock[item]))
+        if not missing:
+            return None
+        if item in trail or len(trail) > 20:
+            self.reason = 'Dependency cycle while supplying ' + item
+            return None
+        trail = (*trail, item)
+        # Keep parallel producers fed before making another one-item delivery.
+        # Otherwise the nearest assembler monopolizes every planning decision
+        # while the other configured machines run out of intermediates.
+        for sid, site in self.sites.items():
+            recipe = self.recipes.get(site.get('recipe',''))
+            entity = self.entities[sid]
+            if not entity or not recipe or not any(p['name']==item for p in recipe['products']):
+                continue
+            inputs = contents(entity.get('input'))
+            if site.get('input_site'):
+                inputs.update(contents((self.entities.get(site['input_site']) or {}).get('chest')))
+            output_sid = site.get('output_site',sid)
+            available = contents((self.entities.get(output_sid) or {}).get(
+                'chest' if output_sid!=sid else 'output'))[item]
+            if available<2 and any(i['type']=='item' and inputs[i['name']]<i['amount']
+                                   for i in recipe['ingredients']):
+                choice = self.supply_cell(sid, missing, trail)
+                if choice:
+                    return choice
+        for source in self.sources(item):
+            sid = source['site']
+            available = contents(self.entities[sid].get(source['inventory']))[item] - source.get('reserve', 0)
+            if available > 0:
+                pickup = max(missing, {'iron-plate':100,'copper-plate':100,'coal':60}.get(item,0))
+                choice = self.at(sid, dict(type='take', item=item, count=min(pickup, available, 200),
+                    inventory=source['inventory']), 'collect:' + item)
+                if choice:
+                    return choice
+        cells = [sid for sid, s in self.sites.items() if s.get('recipe') in self.recipes and
+                 any(p['name'] == item for p in self.recipes[s['recipe']]['products'])]
+        for sid in cells:
+            choice = self.supply_cell(sid, missing, trail)
+            if choice:
+                return choice
+        # Hands can bootstrap solids, but never synthesize chemical/smelted goods.
+        recipe = self.recipes.get(item)
+        if recipe and recipe['category'] == 'crafting' and item in self.enabled and not cells:
+            if self.o.get('crafting'):
+                self.reason = 'Normal hand crafting in progress'
+                return None
+            produced = next(p['amount'] for p in recipe['products'] if p['name'] == item)
+            n = min(20, math.ceil(missing / produced))
+            budget = craft_budget([(item, n)], self.stock)
+            for ingredient, quantity in budget['missing_base'].items():
+                choice = self.ensure(ingredient, self.stock[ingredient] + quantity, trail)
+                if choice:
+                    return choice
+            if budget['missing_base']:
+                self.reason = 'Missing production/supply for ' + ', '.join(budget['missing_base'])
+                return None
+            return self.skill('craft:' + item,
+                [dict(type='craft', recipe=item, count=n), dict(type='await_craft', timeout=21600)],
+                'Craft available unlocked recipe with actual stock')
+        self.reason = 'Waiting for supplied source or configured machine: ' + item
+        return None
+
+    def supply_fluid(self, item, trail):
+        if item in trail or len(trail)>20:
+            self.reason = 'Fluid dependency cycle: ' + item
+            return None
+        for sid, site in self.sites.items():
+            recipe = self.recipes.get(site.get('recipe',''))
+            if recipe and any(p['name']==item and p['type']=='fluid' for p in recipe['products']):
+                choice = self.supply_cell(sid, 10, (*trail,item))
+                if choice:
+                    return choice
+        self.reason = 'Verify connected pipe supply for ' + item
+        return None
+
+    def supply_cell(self, sid, desired, trail):
+        site, entity = self.sites[sid], self.entities[sid]
+        name = site['recipe']
+        recipe = self.recipes[name]
+        if name not in self.enabled:
+            self.reason = 'Recipe locked: ' + name
+            return None
+        if not entity:
+            if not site.get('build', False):
+                self.reason = 'Missing configured machine: ' + sid
+                return None
+            if self.stock[site['entity']] < 1:
+                return self.ensure(site['entity'], 1, trail)
+            return self.at(sid, dict(type='place', direction=site.get('direction','north')), 'build')
+        if entity.get('recipe') != name and entity['type'] == 'assembling-machine':
+            return self.at(sid, dict(type='set_recipe', recipe=name), 'configure')
+        count = max(1, min(10, desired))
+        inputs = contents(entity.get('input'))
+        input_sid = site.get('input_site',sid)
+        if input_sid != sid:
+            buffer = self.entities.get(input_sid)
+            if not buffer:
+                self.reason = 'Missing input buffer: ' + input_sid
+                return None
+            inputs.update(contents(buffer.get('chest')))
+        for ingredient in recipe['ingredients']:
+            if ingredient['type'] == 'fluid':
+                # Fluids must arrive through normal pipes. Never insert them.
+                if not any(f['name'] == ingredient['name'] and f['amount'] >= ingredient['amount']
+                           for f in entity.get('fluids', [])):
+                    choice = self.supply_fluid(ingredient['name'], trail)
+                    if choice:
+                        return choice
+                continue
+            item = ingredient['name']
+            missing = max(0, count * ingredient['amount'] - inputs[item])
+            if missing:
+                if self.stock[item]:
+                    return self.at(input_sid, dict(type='put', inventory='chest' if input_sid!=sid else 'input', item=item,
+                        count=min(missing, self.stock[item], 100)), 'feed:' + item)
+                choice = self.ensure(item, missing, trail)
+                if choice:
+                    return choice
+        self.reason = 'Waiting for actual machine output: ' + sid
+        return None
+
+    def maintenance(self):
+        equipped = sum(s.get('magazines',0) for s in self.o.get('guns',{}).get('slots',[])
+                       if s.get('ammo')=='firearm-magazine')
+        if equipped < self.plan.get('engineer_ammo_reserve', 10):
+            choice = self.ensure('firearm-magazine', self.plan.get('engineer_ammo_reserve',10)-equipped)
+            if choice:
+                return choice
+        ordered = sorted(self.sites.items(), key=lambda pair: math.hypot(
+            pair[1]['stand']['x']-self.o['position']['x'], pair[1]['stand']['y']-self.o['position']['y']))
+        for sid, site in ordered:
+            entity = self.entities[sid]
+            if not entity:
+                continue
+            remote = math.hypot(site['stand']['x']-self.o['position']['x'],
+                                site['stand']['y']-self.o['position']['y']) > 24
+            nearby_sources = [s for s in self.plan.get('sources', []) if s['inventory']=='output'
+                and math.hypot(self.sites[s['site']]['position']['x']-site['position']['x'],
+                               self.sites[s['site']]['position']['y']-site['position']['y']) < 8]
+            # A remote burner is not an emergency when finished metal buffers
+            # already cover the next work. Refill it on the next collection
+            # visit instead of abandoning construction for another round trip.
+            buffered = any(self.stock[s['item']] + sum(
+                contents(e.get('output'))[s['item']] for e in self.entities.values() if e) >= 30
+                for s in nearby_sources)
+            for inventory, item, minimum, target in (
+                    ('fuel', 'coal', site.get('fuel_min', 0), site.get('fuel_target', 10)),
+                    ('ammo', 'firearm-magazine', site.get('ammo_min', 0), site.get('ammo_target', 20))):
+                if minimum and contents(entity.get(inventory))[item] < minimum:
+                    if inventory=='fuel' and remote and buffered and entity['type']!='boiler':
+                        continue
+                    if inventory == 'ammo':
+                        equipped = sum(s.get('magazines',0) for s in self.o.get('guns',{}).get('slots',[]) if s.get('ammo')==item)
+                        spare = max(0, equipped - self.plan.get('engineer_ammo_reserve', 10))
+                        if spare:
+                            return self.at(sid, dict(type='put', inventory='ammo', player_inventory='ammo',
+                                item=item, count=min(target-contents(entity.get('ammo'))[item],spare)), 'maintain:ammo')
+                    if self.stock[item]:
+                        return self.at(sid, dict(type='put', inventory=inventory, item=item,
+                            count=min(target - contents(entity.get(inventory))[item], self.stock[item])),
+                            'maintain:' + item)
+                    choice = self.ensure(item, max(target,60) if item=='coal' else target)
+                    if choice:
+                        return choice
+        return None
+
+    def choose(self, observation, factory, research):
+        self.refresh(observation, factory, research)
+        self.reason = ''
+        if observation.get('guard', {}).get('active') or observation['health'] < .5*observation['max_health']:
+            self.reason = 'Local defense owns inputs'
+            return None
+        choice = self.finish_service()
+        if choice:
+            return choice
+        choice = self.maintenance()
+        if choice:
+            return choice
+        for sid, site in self.sites.items():
+            if any(t not in factory['researched'] for t in site.get('requires', [])):
+                continue
+            if site.get('build') and not site.get('recipe') and not self.entities[sid]:
+                if self.stock[site['entity']] < 1:
+                    choice = self.ensure(site['entity'], 1)
+                else:
+                    choice = self.at(sid, dict(type='place', direction=site.get('direction','north')), 'build')
+                if choice:
+                    return choice
+        target = self.plan['target']
+        technologies = ['military-2', 'rocket-silo'] if target == 'rocket' else [target]
+        pending = research_plan(technologies, factory['researched'])['steps']
+        current = factory.get('research')
+        if not current and pending:
+            step = pending[0]
+            if 'trigger' in step:
+                trigger = step['trigger']
+                if trigger['type']=='craft-item':
+                    item = trigger['item']['name']
+                    # Existing stock does not prove a native production trigger.
+                    # Request additional normal production and wait for the
+                    # game to report the technology actually researched.
+                    choice = self.ensure(item, self.stock[item]+trigger.get('count',1))
+                    if choice:
+                        return choice
+                self.reason = 'Native production trigger required: ' + step['technology']
+                return None
+            return self.skill('research:' + step['technology'],
+                [dict(type='research', technology=step['technology'])], 'Select next unlocked research')
+        if current:
+            tech = self.catalog['technologies'][current]
+            remaining = max(1, math.ceil(tech['count'] * (1 - factory.get('progress', 0))))
+            labs = [(sid, e) for sid, e in self.entities.items() if e and e['type']=='lab']
+            if not labs:
+                self.reason = 'A configured powered lab is required'
+                return None
+            for ingredient in tech['ingredients']:
+                item = ingredient['name']
+                for sid, lab in sorted(labs, key=lambda p: contents(p[1].get('input'))[item]):
+                    held = contents(lab.get('input'))[item]
+                    if held < min(10, remaining):
+                        if self.stock[item]:
+                            return self.at(sid, dict(type='put', inventory='input', item=item,
+                                count=min(remaining-held, self.stock[item], 20)), 'supply-science:' + item)
+                        choice = self.ensure(item, min(20, remaining-held))
+                        if choice:
+                            return choice
+            self.reason = self.reason or 'Research is progressing; verify actual completion'
+        elif not pending:
+            if target != 'rocket':
+                self.reason = 'Target research verified complete'
+                return None
+            silos = [(sid,self.entities[sid]) for sid,s in self.sites.items() if s['entity']=='rocket-silo']
+            if not silos:
+                self.reason = 'Rocket-silo site and production chain required'
+                return None
+            for sid, silo in silos:
+                if silo and silo['rocket_parts'] >= silo['rocket_parts_required']:
+                    return self.at(sid, dict(type='launch'), 'launch')
+                choice = self.supply_cell(sid, 10, ())
+                if choice:
+                    return choice
+        return None
+
+
+class Journal:
+    def __init__(self, directory, plan, resume=False):
+        self.directory = Path(directory).resolve()
+        if ROOT / 'runtime' not in self.directory.parents:
+            raise ValueError('Run records must stay inside runtime/')
+        fingerprint = hashlib.sha256(json.dumps(plan,sort_keys=True).encode()).hexdigest()
+        if resume:
+            self.state = json.loads((self.directory/'state.json').read_text())
+            if self.state['plan_sha256'] != fingerprint:
+                raise ValueError('Resume requires the exact recorded plan')
+        else:
+            self.directory.mkdir(parents=True, exist_ok=False)
+            self.state = dict(plan_sha256=fingerprint, pending=None, serial=0)
+        self.state.setdefault('run_id', secrets.token_hex(6))
+        self.stream = (self.directory/'events.jsonl').open('a' if resume else 'x')
+        self.save()
+
+    def save(self):
+        temporary = self.directory/'state.tmp'
+        temporary.write_text(json.dumps(self.state,indent=2)+'\n')
+        temporary.replace(self.directory/'state.json')
+
+    def emit(self, kind, data):
+        self.stream.write(json.dumps(dict(kind=kind, wall_epoch=time.time(),
+                                         monotonic=time.monotonic(), data=data))+'\n')
+        self.stream.flush()
+
+
+class Runner:
+    def __init__(self, game, planner, journal):
+        self.game, self.planner, self.journal = game, planner, journal
+        self.cursor = EventCursor()
+        self.cursor.value = journal.state.get('event_cursor')
+        self.actor = journal.state.get('actor')
+        self.last_tick = journal.state.get('last_tick')
+        self.last_reason = None
+        self.started_tick = journal.state.get('started_tick')
+        self.failures = Counter(journal.state.get('failures',{}))
+        self.planner.stance_attempts.update(journal.state.get('stance_attempts',{}))
+        self.planner.blocked_until.update(journal.state.get('blocked_until',{}))
+        if any(n>=3 for n in self.failures.values()):
+            raise RuntimeError('Repeated failures require a corrected plan and a new journal')
+        self.planner.service_intent = journal.state.get("service_intent")
+
+    def poll(self):
+        status = self.game.request('status', **({} if self.cursor.value is None else {'after': self.cursor.value}))
+        for event in self.cursor.consume(status):
+            self.journal.emit('game_event', event)
+        self.journal.state['event_cursor'] = self.cursor.value
+        o = self.game.request('observe')
+        self.journal.emit('observation', o)
+        if o['paused'] or o['speed'] != 1 or not o.get('guard',{}).get('enabled'):
+            raise RuntimeError('Runner requires normal-speed unpaused play with local guard enabled')
+        if o.get('version') != '0.5.1' or o.get('mods',{}).get('base') != '2.0.77':
+            raise RuntimeError('Controller/catalog version mismatch')
+        if self.actor is not None and (o['actor_unit'] != self.actor or o['tick'] < self.last_tick):
+            raise RuntimeError('Character or world changed; preserve episode and start a new one')
+        self.actor, self.last_tick = o['actor_unit'], o['tick']
+        if self.started_tick is None:
+            self.started_tick = o['tick']
+        self.journal.state.update(actor=self.actor, last_tick=self.last_tick, started_tick=self.started_tick)
+        self.journal.save()
+        pending = self.journal.state['pending']
+        if pending:
+            job = self.game.request('status', id=pending['id'])
+            if job['status'] == 'running':
+                return False
+            if job.get('id') != pending['id'] or job['status'] not in ('complete','failed','cancelled'):
+                raise RuntimeError('Pending job outcome unknown; no replay')
+            self.journal.emit('job_reconciled', dict(skill=pending, result=job))
+            self.journal.state['pending'] = None
+            self.journal.save()
+            if job['status'] != 'complete':
+                if job.get('error') != 'defense_interrupt':
+                    self.failures[pending['key']] += 1
+                    if pending['key'].startswith('approach:'):
+                        sid = pending['key'].split(':',1)[1]
+                        self.planner.stance_attempts[sid] += 1
+                    self.planner.blocked_until[pending['key']] = o['tick'] + 600
+                    self.journal.state.update(failures=dict(self.failures),
+                        stance_attempts=dict(self.planner.stance_attempts),
+                        blocked_until=self.planner.blocked_until)
+                    self.journal.save()
+                    if self.failures[pending['key']] >= 3:
+                        raise RuntimeError('Repeated skill failure: ' + pending['key'])
+                # Never continue a cancelled batch. Choose again from fresh state.
+                return False
+        elif o.get('job',{}).get('status') == 'running':
+            raise RuntimeError('Another executor owns the engineer')
+        if o.get('guard',{}).get('active'):
+            return False
+        f, r = self.game.request('factory'), self.game.request('research_state')
+        self.journal.emit('factory', f)
+        if any(e.get('by_script') for e in f.get('research_events',{}).values()):
+            raise RuntimeError('Script-completed research is not a compliant milestone')
+        if self.planner.plan['target'] == 'rocket':
+            done = any(e['tick'] > self.started_tick for e in f.get('launches', []))
+        else:
+            done = self.planner.plan['target'] in f['researched']
+        if done:
+            self.journal.emit('target_verified', dict(target=self.planner.plan['target'], factory=f))
+            return True
+        choice = self.planner.choose(o, f, r)
+        self.journal.state['service_intent'] = self.planner.service_intent
+        self.journal.save()
+        if not choice:
+            if self.planner.reason != self.last_reason:
+                self.journal.emit('waiting', {'reason': self.planner.reason})
+                print(self.planner.reason, flush=True)
+                self.last_reason = self.planner.reason
+            return False
+        for action in choice['actions']:
+            if action['type']=='place':
+                check = self.game.request('placement', **{k:action[k]
+                    for k in ('entity','x','y','direction') if k in action})
+                self.journal.emit('placement_preflight', check)
+                if not check['can_place']:
+                    raise RuntimeError('Configured footprint is blocked: '+choice['key'])
+        self.journal.state['serial'] += 1
+        job = dict(choice, id='auto-' + self.journal.state.get('run_id',self.journal.directory.name)
+                   + '-' + str(self.journal.state['serial']))
+        # Write intent durably BEFORE sending. On uncertainty the process exits
+        # with this exact ID available; no implicit retry or new-ID submission.
+        self.journal.state['pending'] = job
+        self.journal.save()
+        self.journal.emit('intent', job)
+        result = self.game.request('submit', id=job['id'], actions=job['actions'])
+        self.journal.emit('submitted', result)
+        print(choice['key'], flush=True)
+        return False
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--plan', type=Path, required=True)
+    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--seconds', type=float, default=600)
+    parser.add_argument('--resume', action='store_true', help='Reconcile the exact recorded pending job before continuing')
+    args = parser.parse_args()
+    if not math.isfinite(args.seconds) or not 0 < args.seconds <= 14400:
+        raise ValueError('Duration must be 1-14400 seconds')
+    plan = load_plan(args.plan)
+    # One local process may own production; the in-game reflex remains separate.
+    with (ROOT/'runtime/autopilot.lock').open('w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        journal = Journal(args.output, plan, resume=args.resume)
+        journal.emit('manifest', {'plan':plan, 'mode':'bounded-normal-mechanics',
+            'resumed':args.resume,
+            'source_sha256':{name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
+                for name in ('client/autopilot.py','client/routes.py','client/materials.py',
+                             'client/progression.py','client/agent.py','data/catalog-2.0.77.json')}})
+        try:
+            with Agent() as game:
+                runner = Runner(game, Planner(plan), journal)
+                end = time.monotonic() + args.seconds
+                while time.monotonic() < end:
+                    start = time.monotonic()
+                    if runner.poll():
+                        print('Target verified in game', flush=True)
+                        return
+                    time.sleep(max(0, .1 - (time.monotonic()-start)))
+                journal.emit('deadline', {'pending':journal.state['pending'],
+                                         'game_paused':False, 'job_may_continue':True})
+        except BaseException as exc:
+            journal.emit('runner_stopped', {'error':type(exc).__name__, 'message':str(exc),
+                                           'pending':journal.state['pending']})
+            raise
+        finally:
+            journal.stream.close()
+
+
+if __name__ == '__main__':
+    main()

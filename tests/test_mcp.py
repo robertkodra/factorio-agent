@@ -167,6 +167,7 @@ class McpTests(unittest.IsolatedAsyncioTestCase):
             dict(type="set_recipe", x=1, y=2, recipe="iron-gear-wheel"),
             dict(type="rotate", x=1, y=2),
             dict(type="wait_ticks", ticks=60, timeout=120),
+            dict(type="launch", entity="rocket-silo", x=1, y=2),
         ]
         self.assertEqual({a["type"] for a in actions}, {a["properties"]["type"]["const"] for a in ACTIONS})
         agent = Mock()
