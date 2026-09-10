@@ -1,6 +1,6 @@
 # Agent connection through MCP
 
-The optional stdio server exposes the 16 fixed controller operations to MCP
+The optional stdio server exposes the 18 fixed controller operations to MCP
 clients. It uses the [official Python SDK](https://github.com/modelcontextprotocol/python-sdk)
 and validates calls against the same JSON Schemas it advertises. The original
 RCON clients still use only the Python standard library.
@@ -47,6 +47,7 @@ console, or Lua arguments.
 | Tools | Purpose |
 |---|---|
 | `hello` | Verify controller version and operations before playing |
+| `prototype` | Read static entity geometry and connection metadata |
 | `bind`, `release` | Take control of an existing connected engineer or return it to the viewer |
 | `observe`, `scan`, `inspect` | Read engineer state and charted/reachable surroundings |
 | `survey`, `placement` | Read nearby charted water/pollution and local normal-placement preflight (controller 0.3.0+) |
@@ -54,6 +55,7 @@ console, or Lua arguments.
 | `guard` | Enable experimental normal-input bullet defense; off by default; limited live defense validated |
 | `submit` | Enqueue one bounded batch and return immediately |
 | `status`, `cancel` | Track or stop the active job without waiting for its planned duration |
+| `interrupt` | Preempt the identified production job while preserving the local guard (0.8.0+) |
 | `pause`, `save` | Record an explicit pause/resume or request a private checkpoint |
 
 Start with `hello`, then `bind` and `observe`. Submit a job with a stable ID:
@@ -67,9 +69,9 @@ Start with `hello`, then `bind` and `observe`. Submit a job with a stable ID:
 
 Call `status` with `{"id":"opening-wait-001"}` to observe completion. Passing
 the ID to `cancel` guards against accidentally cancelling a different job.
-The 13 action schemas cover walking, mining, crafting, waiting for crafting,
+The 14 action schemas cover walking, mining, crafting, waiting for crafting,
 placement, transfers, inventory waits, research selection, machine recipe
-selection, rotation, tick waits, and normal rocket launch. The mod applies default values and checks
+selection, rotation, tick waits, normal chest slot limits, and normal rocket launch. The mod applies default values and checks
 all actual gameplay conditions. Unknown fields, invalid bounds, nonfinite
 numbers, invalid action types, and oversized batches are rejected before RCON.
 Optional fields should be omitted rather than set to `null`.

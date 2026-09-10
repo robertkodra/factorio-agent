@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from client.agent import ROOT
 from client.autopilot import Journal, Planner, Runner
@@ -49,6 +50,27 @@ class FakeGame:
 
 
 class AutopilotTests(unittest.TestCase):
+    def test_first_defense_sample_is_immediate_with_near_zero_clock_and_on_resume(self):
+        g=FakeGame();j=MemoryJournal();g.f['tick']=100
+        station=dict(id='station',entity='gun-turret',position=dict(x=100,y=0),stand=dict(x=98,y=0))
+        plan=dict(target='defense',sites=[station],defense_stations=['station'])
+        g.pending=dict(id='production-1',status='running');g.o['job']=g.pending
+        j.state['pending']=dict(id='production-1',key='approach:work',actions=[])
+        with patch('client.autopilot.time.monotonic',return_value=0.0) as clock:
+            r=Runner(g,Planner(plan),j)
+            self.assertFalse(r.poll())
+            self.assertEqual(sum(op=='factory' for op,_ in g.calls),1)
+            clock.return_value=.499
+            self.assertFalse(r.poll())
+            self.assertEqual(sum(op=='factory' for op,_ in g.calls),1)
+            clock.return_value=.5
+            self.assertFalse(r.poll())
+            self.assertEqual(sum(op=='factory' for op,_ in g.calls),2)
+            clock.return_value=.501
+            r=Runner(g,Planner(plan),j)
+            self.assertFalse(r.poll())
+            self.assertEqual(sum(op=='factory' for op,_ in g.calls),3)
+
     def test_blocked_construction_keeps_defense_alive_across_resume(self):
         g=FakeGame();j=MemoryJournal();g.f['tick']=100
         station=dict(id='station',entity='gun-turret',position=dict(x=100,y=0),stand=dict(x=98,y=0))
@@ -73,7 +95,7 @@ class AutopilotTests(unittest.TestCase):
         r=Runner(g,Planner(plan),j)
         self.assertFalse(r.poll())
         self.assertEqual(sum(op=='placement' for op,_ in g.calls),1)
-        g.o['tick']=200;g.f['tick']=200;turret['health']=390;r.defense_poll_wall=0
+        g.o['tick']=200;g.f['tick']=200;turret['health']=390;r.defense_poll_wall=None
         self.assertFalse(r.poll())
         self.assertTrue(j.state['pending']['key'].startswith('factory-defense:'))
         self.assertTrue(g.o['guard']['enabled'])
@@ -85,12 +107,12 @@ class AutopilotTests(unittest.TestCase):
             health=400,ammo=[dict(name='firearm-magazine',count=20)])]
         p=Planner(dict(target='military-2',sites=[s],defense_stations=['station'],watch_after_target=True))
         r=Runner(g,p,j);self.assertFalse(r.poll());self.assertTrue(j.state['target_verified'])
-        g.o['tick']=130;g.f['tick']=130;g.f['entities'][0]['health']=399;r.defense_poll_wall=0
+        g.o['tick']=130;g.f['tick']=130;g.f['entities'][0]['health']=399;r.defense_poll_wall=None
         self.assertFalse(r.poll());self.assertIsNotNone(r.factory_defense.state['alarm'])
         self.assertEqual(sum(k=='target_verified' for k,_ in j.events),1)
         s.update(ammo_min=10,ammo_target=20)
         g.o.update(tick=800,position=s['stand']);g.f['tick']=800
-        g.f['entities'][0]['ammo'][0]['count']=5;r.defense_poll_wall=0
+        g.f['entities'][0]['ammo'][0]['count']=5;r.defense_poll_wall=None
         self.assertFalse(r.poll())
         self.assertEqual(j.state['pending']['key'],'maintain:ammo:station')
 
@@ -489,3 +511,52 @@ class AutopilotTests(unittest.TestCase):
         submits=[kw for op,kw in g.calls if op=='submit']
         self.assertEqual(len(submits),1);self.assertTrue(submits[0]['defense'])
         self.assertFalse(any(op in ('cancel','guard') for op,_ in g.calls))
+
+    def test_damage_summary_cannot_skip_older_paginated_events(self):
+        g=FakeGame();j=MemoryJournal();g.o['version']='0.8.0'
+        g.pending=dict(id='defense-1',status='running');g.o['job']=g.pending
+        j.state.update(event_cursor=0,pending=dict(id='defense-1',key='factory-defense:station'))
+        records=[dict(seq=n,tick=100+n,id=n+2,entity='transport-belt',
+                      position=dict(x=n,y=0),kind='destroyed') for n in (1,2,3)]
+        original=g.request
+        def request(op,**kw):
+            if op=='status' and 'id' not in kw:
+                page=records[kw['after']:kw['after']+1]
+                return dict(sequence=3,events=[dict(seq=d['seq'],tick=d['tick'],
+                    kind='factory_destroyed',detail=d) for d in page],last_factory_damage=records[-1])
+            return original(op,**kw)
+        g.request=request
+        r=Runner(g,Planner(dict(target='defense',sites=[])),j)
+        for expected in (1,2,3):
+            self.assertFalse(r.poll())
+            self.assertEqual(r.factory_defense.state['event_seq'],expected)
+            self.assertEqual(len(r.factory_defense.state['alarm']['damage']),expected)
+        self.assertFalse(r.poll())
+        self.assertEqual({d['id'] for d in r.factory_defense.state['alarm']['damage']},{3,4,5})
+
+    def test_external_belt_input_services_starved_upstream_cable(self):
+        cable=dict(site('cable'),entity='assembling-machine-1',recipe='copper-cable',batch_size=50)
+        circuit=dict(site('circuit'),entity='assembling-machine-1',recipe='electronic-circuit',external_inputs=True,
+                     position=dict(x=10,y=0),stand=dict(x=9,y=0))
+        p=Planner(dict(target='military-2',sites=[cable,circuit]))
+        o=observation();o['position']=cable['stand'];o['inventory']=[dict(name='copper-plate',count=100)]
+        f=dict(entities=[dict(name=cable['entity'],position=cable['position'],type='assembling-machine',
+                             recipe='copper-cable',input=[],output=[]),
+                        dict(name=circuit['entity'],position=circuit['position'],type='assembling-machine',
+                             recipe='electronic-circuit',input=[dict(name='iron-plate',count=3)],output=[])])
+        p.refresh(o,f,dict(enabled_recipes=['copper-cable','electronic-circuit']))
+        choice=p.supply_cell('circuit',10,('electronic-circuit',))
+        self.assertEqual(choice['key'],'feed:copper-plate:cable')
+        self.assertEqual(choice['actions'][0]['count'],50)
+        self.assertEqual(choice['actions'][0]['entity'],'assembling-machine-1')
+
+    def test_explicit_handcraft_fallback_breaks_repair_bootstrap_deadlock(self):
+        s=dict(site('inserter'),entity='assembling-machine-1',recipe='inserter',external_inputs=True)
+        p=Planner(dict(target='military-2',sites=[s],handcraft_fallback=['inserter']))
+        o=observation();o['inventory']=[dict(name=item,count=10) for item in ['iron-plate','iron-gear-wheel','electronic-circuit']]
+        f=dict(entities=[dict(name=s['entity'],position=s['position'],type='assembling-machine',recipe='inserter',input=[],output=[])])
+        p.refresh(o,f,dict(enabled_recipes=['inserter']))
+        choice=p.ensure('inserter',1)
+        self.assertEqual(choice['actions'],[dict(type='craft',recipe='inserter',count=1)])
+        p.plan['handcraft_fallback']=[]
+        self.assertIsNone(p.ensure('inserter',1))

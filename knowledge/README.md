@@ -1,6 +1,13 @@
 # Factorio knowledge base
 
-Latest analysis: [controller and factory improvement plan](improvement-plan-001.md).
+Current direction and state: [architecture review response](review-response-001.md).
+Controller 0.8.0 completed Oil Gathering in checkpoint practice. That development
+ledger is closed with a verified save; no gameplay scheduler is active and no
+character was bound at review. The next work is a state mirror, production graph
+and verified layout compiler. Oil production, later science and a rocket remain
+unverified. All running/paused notes below describe historical stopping points.
+
+Prior analysis: [controller and factory improvement plan](improvement-plan-001.md).
 A fresh cadence/stock audit, speedrunner reference archive inspection, phased
 factory proposal and implementation priorities extend the paused retrospective.
 

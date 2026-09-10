@@ -2,7 +2,14 @@
 
 A local, tick-driven controller for Factorio **2.0.77**, tested on macOS with Steam. The planner submits batches; the game executes ordinary walking, mining, crafting, item-funded construction, transfers, and research on its own ticks. The direct Python clients use only the standard library.
 
-Controller source **0.6.0** uses a fixed `/codex-agent` JSON interface over persistent RCON. An optional [MCP stdio facade](MCP.md) exposes its 17 fixed operations with validated schemas (Python 3.10+ and separate dependencies). Base gameplay is enabled, with Space Age, Quality, and Elevated Rails disabled. The control-only mod changes no prototypes or recipes. The reflex has passed a limited live defensive encounter; broader survival remains under test.
+Controller development source **0.8.0** uses a fixed `/codex-agent` JSON interface over persistent RCON. An optional [MCP stdio facade](MCP.md) exposes its 18 fixed operations with validated schemas (Python 3.10+ and separate dependencies). Base gameplay is enabled, with Space Age, Quality, and Elevated Rails disabled. The control-only mod changes no prototypes or recipes. The reflex has passed a limited live defensive encounter; broader survival remains under test.
+
+The [architecture review and next acceptance gates](knowledge/review-response-001.md)
+supersede the earlier implementation priorities. Oil Gathering completed in
+checkpoint practice; oil production, blue science and a launch remain unverified.
+The scheduler still needs manually surveyed plans. Development now prioritizes
+a state mirror, production graph and verified layout compilation. These are
+planned capabilities, not a claim that controller 0.8 is a general factory agent.
 
 The [local Qwen integration](knowledge/local-controller-001.md) is configured and
 tested through Ollama: 48/50 expected offline choices, 0.694-second median
@@ -73,9 +80,9 @@ After an uncertain transport failure, reconnect and inspect the same job ID. The
 
 ## Interface and limits
 
-Fixed operations: `prototype`, `hello`, `bind`, `release`, `observe`, `scan`, `survey`, `placement`, `inspect`, `factory`, `research_state`, `guard`, `submit`, `status`, `cancel`, `pause`, `save`.
+Fixed operations: `prototype`, `hello`, `bind`, `release`, `observe`, `scan`, `survey`, `placement`, `inspect`, `factory`, `research_state`, `guard`, `submit`, `status`, `cancel`, `interrupt`, `pause`, `save`.
 
-Actions: `walk`, `mine`, `craft`, `await_craft`, `place`, `put`, `take`, `wait_inventory`, `research`, `set_recipe`, `rotate`, `wait_ticks`, `launch`.
+Actions: `walk`, `mine`, `craft`, `await_craft`, `place`, `put`, `take`, `wait_inventory`, `research`, `set_recipe`, `rotate`, `wait_ticks`, `limit_chest`, `launch`.
 
 - One active batch, with 1–512 actions. Structural validation occurs before enqueueing; gameplay preconditions are checked when a step executes. Failures stop the batch, preserving completed work.
 - Construction checks reach, collision, and real inventory costs. It creates entities through the mod API and does not reproduce every player-input statistic/event.

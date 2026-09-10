@@ -1,3 +1,18 @@
+# Controller 0.8.0 development — 2026-09-10
+
+- Added native owned-factory damage/destruction evidence and production preemption
+  that preserves the local guard, plus fixed `interrupt` and normal chest limits.
+- Added bounded stock collection, used-tool transfer regression coverage and
+  explicit checkpoint supply/handcraft recovery options. These are integration
+  experiments, not general factory planning.
+- Corrected the initial defense poll for clocks starting near zero and protected
+  paginated damage events from a newer summary skipping intervening records.
+- Added streaming private cadence analysis, preserving failed receipts and
+  distinguishing native job gaps from reaction latency.
+- Checkpoint practice completed Oil Gathering. No later-science, rocket or new
+  natural-attack validation is claimed. Read the [review response and acceptance
+  gates](knowledge/review-response-001.md) for results and the architecture pivot.
+
 # Controller 0.7.0 development
 
 Typed underground-belt endpoints and owned lane/pair observations; batched belt

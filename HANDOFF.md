@@ -10,7 +10,38 @@ git switch -c codex/next-milestone
 
 Read [POLICY.md](POLICY.md), [ROADMAP.md](ROADMAP.md), and [knowledge/README.md](knowledge/README.md). Set Git to your own GitHub-provided no-reply identity before committing. Never copy another machine's credentials or local configuration.
 
-## Current development — controller 0.7.0
+## Current review — controller 0.8.0
+
+Read [the architecture review response](knowledge/review-response-001.md) first.
+The installed controller and this branch's mod source are 0.8.0. This is a
+development candidate, not a merged stable release. Its checkpoint continuation
+completed Oil Gathering and an infrastructure placement target. Sustained output
+from the final repair, oil production, blue science and a rocket are unverified.
+
+At review, the local server was running, the latest job was complete, the guard
+was disabled and observations rejected with `no_bound_character`. No gameplay
+scheduler was running. Do not infer a death or gameplay pause from that rejection.
+The final checkpoint passed ZIP integrity and SHA-256 checks; the development
+ledger is closed with all four scheduler phases, failures and interventions
+preserved. Do not resume the repair scheduler automatically. Any further play
+needs a new ledger and actual server/character identity checks.
+
+Native owned-building damage/destruction events, guard-preserving interruption
+and normal chest limits are implemented. The first defense health sample no
+longer depends on the monotonic clock's origin. New emergency behavior has unit
+coverage but no measured natural-attack trial in this continuation. Python
+checkpoint-recovery options remain experiments, not general planning capability.
+
+The next development gate is a replay-tested state mirror and production-flow
+diagnosis, followed by one compiled production block with measured downstream
+output. Preserve the executor; stop treating additional manually authored factory
+repairs as evidence of a general agent. Qwen remains an asynchronous shadow adviser.
+
+All sections below describe historical stopping points or setup procedures.
+Their running/paused state and next-work instructions are superseded by this
+section and the current review response.
+
+## Historical development — controller 0.7.0
 
 Read the [paused-session retrospective](knowledge/session-retrospective-001.md)
 first, then the [improvement analysis](knowledge/improvement-plan-001.md).

@@ -1,13 +1,18 @@
 # Progression and MCP roadmap
 
-The next milestone is a clean, reproducible early-game run under `POLICY.md`, followed by research that consumes green science. Robot and rocket capability is not yet demonstrated.
+The objective is repeatable normal-mechanics rocket completion. Military 2 and
+Oil Gathering have completed in checkpoint practice; connected oil production,
+later science and a launch remain unverified. Follow the
+[architecture review gates](knowledge/review-response-001.md) before further
+factory expansion. Fresh-map generalization and competitive performance are
+separate demonstrations, not consequences of passing executor tests.
 
 ## Gameplay milestones
 
 | ID | Goal | Completion evidence | Current evidence |
 |---|---|---|---|
 | G0 | Establish a clean baseline | Fresh map; initial state and version/seed/mod hashes; no console Lua | Recorded for responsiveness and the separate learning attempt; the latter records controller upgrades and recovery |
-| G1 | Stable early factory | Powered red/green production, supplied labs, enough fuel/input buffers | Partial: current-policy checkpoint continuation has automatic red delivery and Electric mining drill; green and continuous input supply remain pending |
+| G1 | Stable early factory | Powered red/green production, supplied labs, enough fuel/input buffers | Partial: red/green production and research demonstrated in checkpoint practice; sustained input supply and a clean fresh-map repeat remain pending |
 | G2 | First green-consuming research | `military-2` completed by labs after Military, Steel processing, and green-science prerequisites | Demonstrated in checkpoint practice with native completion; fresh-map repetition pending |
 | G3 | Military science and research | Military-science recipe unlocked; packs produced; a technology requiring military packs completed through labs | Pending |
 | G4 | Oil and blue science | Oil processing chain supplies blue packs; blue-consuming research completed | Pending |
@@ -32,17 +37,26 @@ Start with one local MCP server around the existing controller. Multiple indepen
 | Session | Status, cancellation, explicit pause/resume, checkpoint, recovery | Fixed commands exist; portable orchestration and broader recovery tests pending |
 | Performance | Timing, throughput, starvation/fuel/power diagnostics | Existing logs; sustained throughput and bottleneck metrics pending |
 
-The optional [MCP stdio facade](MCP.md) wraps the fixed RCON client using the official Python SDK. It exposes 17 schema-validated tools and persistent RCON transport, including local placement and charted water/pollution observations, with no generic Lua, shell, or raw-console tool. Submission returns immediately; status/cancel operate while a tick job is active. Uncertain mutations must be reconciled by job ID instead of replayed. SDK/stdio/socket tests, historical-save compatibility and a [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) pass. Fresh automated red/green production remains pending. The archived upstream FactorioMCP exposed unrestricted Lua and remains unsuitable for new-policy runs.
+The optional [MCP stdio facade](MCP.md) wraps the fixed RCON client using the official Python SDK. It exposes 18 schema-validated tools and persistent RCON transport, including local placement and charted water/pollution observations, with no generic Lua, shell, or raw-console tool. Submission returns immediately; status/cancel operate while a tick job is active. Uncertain mutations must be reconciled by job ID instead of replayed. SDK/stdio/socket tests, historical-save compatibility and a [fresh conveyor responsiveness test](knowledge/responsiveness-001.md) pass. Fresh automated red/green production remains pending. The archived upstream FactorioMCP exposed unrestricted Lua and remains unsuitable for new-policy runs.
 
 ## Next implementation order
 
-1. **Implemented:** MCP facade through controller 0.3.2, including initialization/tool listing, input validation, cancellation, reconnect, and no mutation replay. See [MCP.md](MCP.md) for setup and test scope.
-2. **Partial:** measurable path-progress watchdog and bounded retries pass a live blocked-tree test. Add automatic reachable service positions and test more poles, belts, corners and unreachable targets.
-3. **Partial:** local normal-placement preflight and explicit turret ammo access exist. Add planning for power/fluid/inserter connections and complete entity-specific inventory mappings.
-4. Add fresh-run manifests and event-based goal evaluation; then repeat G0/G1 and complete G2.
-5. Extend oil/fluids, modules, robots, and silo operations only as those stages require them, with normal mechanics and stage-specific tests.
+The [review response](knowledge/review-response-001.md) defines the acceptance
+criteria and supersedes the older extension-by-extension order:
 
-For the next learning run, supply/fuel automation and a larger smelting base matter more than shaving a few milliseconds from tool responses. See [speedrun preparation](knowledge/speedrun-preparation.md) for measured red production, depletion recovery, capacity/fuel calculations and the Military 2 test protocol.
+1. Review a single identified 0.8 baseline, including supported Python tests,
+   event/transfer correctness and clear source/runtime identities.
+2. Build a reconstructable state mirror with sequenced native events, bounded
+   reconciliation reads, stale-state handling and measured observation costs.
+3. Build a production graph that diagnoses disconnected and starved paths from
+   observations, then compile and live-verify one reusable production block.
+4. Add backward phase planning with infrastructure, power, logistics and defense
+   costs; validate oil through launch in checkpoint integration exercises.
+5. Require a clean fixed-seed launch with frozen code, then at least five unseen
+   seeds with all failures counted. Optimize completion time after reliability.
+
+The capability table below retains narrower implementation details; implemented
+helpers do not establish that the new mirror or compiler exists.
 
 ## What a full rocket-playing agent still needs
 

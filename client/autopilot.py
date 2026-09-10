@@ -45,6 +45,8 @@ def load_plan(path):
     radius=plan.get('local_transfer_radius',0)
     if isinstance(radius,bool) or not isinstance(radius,(int,float)) or not 0<=radius<=3:
         raise ValueError('Local transfer radius must be between 0 and 3 tiles')
+    if not isinstance(plan.get('handcraft_fallback',[]),list) or any(not isinstance(item,str) for item in plan.get('handcraft_fallback',[])):
+        raise ValueError('handcraft_fallback must be a list of recipe names')
     ids = set()
     for s in plan['sites']:
         if not isinstance(s.get('id'), str) or s['id'] in ids or not isinstance(s.get('entity'), str):
@@ -212,6 +214,7 @@ class Planner:
             self.reason = 'Dependency cycle while supplying ' + item
             return None
         trail = (*trail, item)
+        handcraft_fallback=item in self.plan.get('handcraft_fallback',[])
         available_total=sum(max(0,contents(self.entities[s['site']].get(s['inventory']))[item]
             -s.get('reserve',0)) for s in self.sources(item))
         ready_batch=min(missing,2 if item.endswith('science-pack') else 10)
@@ -221,7 +224,7 @@ class Planner:
         for sid, site in self.sites.items():
             recipe = self.recipes.get(site.get('recipe',''))
             entity = self.entities[sid]
-            if not entity or not recipe or not any(p['name']==item for p in recipe['products']):
+            if handcraft_fallback or not entity or not recipe or not any(p['name']==item for p in recipe['products']):
                 continue
             inputs = contents(entity.get('input'))
             input_sid=self.input_location(sid)
@@ -267,13 +270,13 @@ class Planner:
                 return self.at(sid,dict(type='mine',item=item,count=1,timeout=3600),'gather')
         cells = [sid for sid, s in self.sites.items() if s.get('recipe') in self.recipes and
                  any(p['name'] == item for p in self.recipes[s['recipe']]['products'])]
-        for sid in cells:
+        for sid in ([] if handcraft_fallback else cells):
             choice = self.supply_cell(sid, missing, trail)
             if choice:
                 return choice
         # Hands can bootstrap solids, but never synthesize chemical/smelted goods.
         recipe = self.recipes.get(item)
-        if recipe and recipe['category'] == 'crafting' and item in self.enabled and not cells:
+        if recipe and recipe['category'] == 'crafting' and item in self.enabled and (not cells or item in self.plan.get('handcraft_fallback',[])):
             if self.o.get('crafting'):
                 self.reason = 'Normal hand crafting in progress'
                 return None
@@ -332,6 +335,20 @@ class Planner:
                 return None
             inputs.update(contents(buffer.get('chest')))
         if site.get('external_inputs'):
+            # Belt-fed means do not hand-fill this machine, not that upstream
+            # production is guaranteed. Repair the missing ingredient's producer
+            # before waiting forever beside an empty delivery path.
+            for ingredient in recipe['ingredients']:
+                item=ingredient['name']
+                if ingredient['type']!='item' or inputs[item]>=ingredient['amount'] or item in trail:
+                    continue
+                for producer_id,producer in self.sites.items():
+                    upstream=self.recipes.get(producer.get('recipe',''))
+                    if producer_id==sid or not upstream or not any(p['name']==item for p in upstream['products']):
+                        continue
+                    choice=self.supply_cell(producer_id,desired,(*trail,item))
+                    if choice:
+                        return choice
             self.reason = 'Waiting for native inserter supply/output: ' + sid
             return None
         for ingredient in recipe['ingredients']:
@@ -594,7 +611,9 @@ class Runner:
         from .factory_defense import FactoryDefense
         self.factory_defense=FactoryDefense(journal.state.get('factory_defense'))
         self.defense_factory=None
-        self.defense_poll_wall=0
+        # monotonic() has an unspecified origin, which can be near zero at
+        # process start. A fresh runner must sample before applying its interval.
+        self.defense_poll_wall=None
 
     def poll(self):
         status = self.game.request('status', **({} if self.cursor.value is None else {'after': self.cursor.value}))
@@ -603,7 +622,8 @@ class Runner:
             if event['kind'] in ('factory_damaged','factory_destroyed'):
                 self.factory_defense.event(dict(event['detail'],seq=event['seq'],tick=event['tick']))
         self.journal.state['event_cursor'] = self.cursor.value
-        if status.get('last_factory_damage'):
+        # Do not jump past factory events still queued in a paginated batch.
+        if status.get('last_factory_damage') and not status.get('events'):
             self.factory_defense.event(status['last_factory_damage'])
         self.journal.state['factory_defense']=self.factory_defense.state
         o = self.game.request('observe')
@@ -624,7 +644,8 @@ class Runner:
         pending = self.journal.state['pending']
         # Observe the whole owned factory even while walking/crafting. The
         # engineer-local reflex does not report remote buildings being attacked.
-        if self.planner.plan.get('defense_stations') and time.monotonic()-self.defense_poll_wall>=.5:
+        if self.planner.plan.get('defense_stations') and (self.defense_poll_wall is None
+                or time.monotonic()-self.defense_poll_wall>=.5):
             self.defense_factory=self.game.request('factory')
             damage=self.factory_defense.observe(self.defense_factory)
             self.defense_poll_wall=time.monotonic()
