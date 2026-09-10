@@ -1,5 +1,9 @@
 # Factorio knowledge base
 
+Current offline draft: [material-flow evidence and review gaps](material-flow-002.md).
+The observed-topology foundation is merged. Keep gameplay stopped and retain
+unknown results where historical data does not support a diagnosis.
+
 Latest offline implementation: [observed production graph](production-graph-001.md).
 The 0.8 baseline and [state-mirror slice](state-mirror-001.md) merged in order after
 review corrections. Graph analysis remains offline. The 0.8.1 mod stays uninstalled
